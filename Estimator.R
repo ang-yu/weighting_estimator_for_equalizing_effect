@@ -6,9 +6,11 @@
 # Y must also be numeric
 # there shouldn't be a variable in more than one of the sets Y,M,R1,R2,Q,L,C  
 
-gap_closing <- function(Y, M, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Difference", K=1000) {
+equalize <- function(Y, M, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Difference", K=1000) {
   
   data_inuse <- na.omit(data[,c(Y, M, R1, R2, Q, L, C)])
+  # Even if R1 and R2 do not exhaust the data, the cases in neither R1 nor R2 are still retained.
+  # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the OD between R1 and R3.
   
   Q <- paste(Q,collapse="+")
   C <- paste(C,collapse="+")
@@ -83,6 +85,7 @@ gap_closing <- function(Y, M, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk
   }
   
   boot_original <- boot_remaining <- boot_reduction <- rep(NA, K)
+  set.seed(36)
   
   for (i in 1:K) {
     
@@ -114,18 +117,18 @@ gap_closing <- function(Y, M, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk
     }
     
     if (metric=="Risk Difference") {
-      original <- sprintf("%.4f",original_R1-original_R2)
-      remaining <- sprintf("%.4f",original_R1-post_R2)
-      reduction <- sprintf("%.4f",post_R2-original_R2)
+      original_boot <- sprintf("%.4f",original_R1-original_R2)
+      remaining_boot <- sprintf("%.4f",original_R1-post_R2)
+      reduction_boot <- sprintf("%.4f",post_R2-original_R2)
     } else if (metric=="Risk Ratio") {
-      original <- sprintf("%.4f",original_R1/original_R2)
-      remaining <- sprintf("%.4f",original_R1/post_R2)
-      reduction <- sprintf("%.4f",post_R2/original_R2)
+      original_boot <- sprintf("%.4f",original_R1/original_R2)
+      remaining_boot <- sprintf("%.4f",original_R1/post_R2)
+      reduction_boot <- sprintf("%.4f",post_R2/original_R2)
     }
     
-    boot_original[i] <- original
-    boot_remaining[i] <- remaining
-    boot_reduction[i] <- reduction
+    boot_original[i] <- original_boot
+    boot_remaining[i] <- remaining_boot
+    boot_reduction[i] <- reduction_boot
     
   }
   
