@@ -19,50 +19,50 @@ gap_closing <- function(Y, M, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk
     deno_formula <- as.formula(paste(M, paste(R1,R2,Q,C,L,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
-    } else if (Q!="" & L!="") {
-      nume_formula <- as.formula(paste(M, paste(R1,R2,Q,sep="+"),sep="~"))
-      deno_formula <- as.formula(paste(M, paste(R1,R2,Q,L,sep="+"),sep="~"))
-    } else if (Q!="" & C!="") {
-      nume_formula <- as.formula(paste(M, paste(R1,R2,Q,C,sep="+"),sep="~"))
-      deno_formula <- as.formula(paste(M, paste(R1,R2,Q,C,sep="+"),sep="~"))
-      adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
-      adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
-    } else if (L!="" & C!="") {
-      nume_formula <- as.formula(paste(M, paste(R1,R2,C,sep="+"),sep="~"))
-      deno_formula <- as.formula(paste(M, paste(R1,R2,C,L,sep="+"),sep="~"))
-      adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
-      adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
-    } else if (Q!="") {
-      nume_formula <- as.formula(paste(M, paste(R1,R2,Q,sep="+"),sep="~"))
-      deno_formula <- as.formula(paste(M, paste(R1,R2,Q,sep="+"),sep="~"))
-    } else if (L!="") {
-      nume_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
-      deno_formula <- as.formula(paste(M, paste(R1,R2,L,sep="+"),sep="~"))
-    } else if (C!="") {
-      nume_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
-      deno_formula <- as.formula(paste(M, paste(R1,R2,C,sep="+"),sep="~"))
-      adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
-      adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
-    } else {
-      nume_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
-      deno_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
-    }
-
+  } else if (Q!="" & L!="") {
+    nume_formula <- as.formula(paste(M, paste(R1,R2,Q,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(M, paste(R1,R2,Q,L,sep="+"),sep="~"))
+  } else if (Q!="" & C!="") {
+    nume_formula <- as.formula(paste(M, paste(R1,R2,Q,C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(M, paste(R1,R2,Q,C,sep="+"),sep="~"))
+    adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
+    adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
+  } else if (L!="" & C!="") {
+    nume_formula <- as.formula(paste(M, paste(R1,R2,C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(M, paste(R1,R2,C,L,sep="+"),sep="~"))
+    adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
+    adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
+  } else if (Q!="") {
+    nume_formula <- as.formula(paste(M, paste(R1,R2,Q,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(M, paste(R1,R2,Q,sep="+"),sep="~"))
+  } else if (L!="") {
+    nume_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(M, paste(R1,R2,L,sep="+"),sep="~"))
+  } else if (C!="") {
+    nume_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(M, paste(R1,R2,C,sep="+"),sep="~"))
+    adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
+    adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
+  } else {
+    nume_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(M, paste(R1,R2,sep="+"),sep="~"))
+  }
+  
   nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)
   nume_newdata <- data_inuse
   nume_newdata[,R1] <- 1
   nume_newdata[,R2] <- 0
-  nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response")
+  suppressWarnings( nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response") )
   
   deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_inuse)
   deno_newdata <- data_inuse
   deno_newdata[,R1] <- 0
   deno_newdata[,R2] <- 1
-  deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response")
+  suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
   
   if (C!="") {
-    adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_inuse), type="response")
-    adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_inuse), type="response")
+    suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
+    suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
     original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1]*mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1])
     original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1])
     post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1])
@@ -93,17 +93,17 @@ gap_closing <- function(Y, M, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk
     nume_newdata <- data_boot
     nume_newdata[,R1] <- 1
     nume_newdata[,R2] <- 0
-    nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response")
+    suppressWarnings( nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response") )
     
     deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_boot)
     deno_newdata <- data_boot
     deno_newdata[,R1] <- 0
     deno_newdata[,R2] <- 1
-    deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response")
+    suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
     
     if (C!="") {
-      adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_boot), type="response")
-      adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_boot), type="response")
+      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
+      suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
       original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1]*mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1])
       original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1])
       post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1])
@@ -133,10 +133,9 @@ gap_closing <- function(Y, M, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk
   boot_sd_remaining <- sprintf("%.4f",sd(boot_remaining))
   boot_sd_reduction <- sprintf("%.4f",sd(boot_reduction))
   
-  cat(paste(paste(" Original Disparity",original,sep=": "),paste("Standard Error",boot_sd_original,sep=": ")),"\n",
-      paste(paste("Remaining Disparity",remaining,sep=": "),paste("Standard Error",boot_sd_remaining,sep=": ")),"\n",
-      paste(paste("Reduction in Disparity",reduction,sep=": "),paste("Standard Error",boot_sd_reduction,sep=": ")))
+  cat(paste(paste(" Original Disparity",original,sep=": "),paste("Standard Error",boot_sd_original,sep=": "),sep=", "),"\n",
+      paste(paste("Remaining Disparity",remaining,sep=": "),paste("Standard Error",boot_sd_remaining,sep=": "),sep=", "),"\n",
+      paste(paste("Reduction in Disparity",reduction,sep=": "),paste("Standard Error",boot_sd_reduction,sep=": "),sep=", "))
   
 }
-
 
