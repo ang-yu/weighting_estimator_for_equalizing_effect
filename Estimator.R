@@ -8,9 +8,53 @@
 
 equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Difference", K=1000, alpha=0.05) {
   
+  cl <- match.call()
+  
+  options(error = NULL)
+  
+  # check data
+  if(!is.data.frame(data)) stop("data must be a data.frame.",call.=FALSE)
+  
   data_inuse <- na.omit(data[,c(Y, W, R1, R2, Q, L, C)])
   # Even if R1 and R2 do not exhaust the data, the cases in neither R1 nor R2 are still retained.
   # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the OD between R1 and R3.
+  
+  # check Y
+  if(missing(Y)) stop("Y must be provided.")
+  if(!is.character(Y)) stop("Y must be a character scalar vector.",call.=FALSE)
+  if(length(Y)>1) stop("Y must be only one variable",call.=FALSE)
+  if(!is.numeric(data_inuse[,Y])) stop("Y must be numeric",call.=FALSE) 
+
+  # check W
+  if(missing(W)) stop("W must be provided.")
+  if(!is.character(W)) stop("W must be a character scalar vector.",call.=FALSE)
+  if(length(W)>1) stop("W must be only one variable.",call.=FALSE)
+  if(length(unique(data_inuse[,W]))!=2) stop("W must be binary.",call.=FALSE)
+  if(!is.factor(data_inuse[,W]) & !is.numeric(data_inuse[,W])) stop("W must be either factor or numeric.",call.=FALSE)
+  if(is.numeric(data_inuse[,W]) & (max(data_inuse[,W])!=1 | min(data_inuse[,W])!=0)) stop("W must only have values of 0 and 1.",call.=FALSE)
+  
+  # check R1 and R2
+  if(missing(R1)) stop("R1 must be provided.")
+  if(!is.character(R1)) stop("R1 must be a character scalar vector.",call.=FALSE)
+  if(length(R1)>1) stop("R1 must be only one variable.",call.=FALSE)
+  if(length(unique(data_inuse[,R1]))!=2) stop("R1 must be binary.",call.=FALSE)
+  if(!is.numeric(data_inuse[,R1])) stop("R1 must be numeric",call.=FALSE) 
+  if(max(data_inuse[,R1])!=1 | min(data_inuse[,R1])!=0) stop("R1 must only have values of 0 and 1.",call.=FALSE)
+  
+  if(missing(R2)) stop("R2 must be provided.")
+  if(!is.character(R2)) stop("R2 must be a character scalar vector.",call.=FALSE)
+  if(length(R2)>1) stop("R2 must be only one variable.",call.=FALSE)
+  if(length(unique(data_inuse[,R2]))!=2) stop("R2 must be binary.",call.=FALSE)
+  if(!is.numeric(data_inuse[,R2])) stop("R2 must be numeric",call.=FALSE) 
+  if(max(data_inuse[,R2])!=1 | min(data_inuse[,R2])!=0) stop("R2 must only have values of 0 and 1.",call.=FALSE)
+  
+  if(table(data_inuse[,R1], data_inuse[,R2])[2,2]!=0) stop("There must be no case with both R1 and R2 equal to 1.",call.=FALSE)
+
+  # check Q, L, and C
+  if(!is.null(Q) & !is.character(Q)) stop("Q must be a character vector.",call.=FALSE)
+  if(!is.null(L) & !is.character(L)) stop("L must be a character vector.",call.=FALSE)
+  if(!is.null(C) & !is.character(C)) stop("C must be a character vector.",call.=FALSE)
+  
   
   Q <- paste(Q,collapse="+")
   C <- paste(C,collapse="+")
@@ -154,8 +198,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
   output[1,] <- c(sprintf("%.4f",original),sprintf("%.4f",boot_original_sd),boot_original_ci)
   output[2,] <- c(sprintf("%.4f",remaining),sprintf("%.4f",boot_remaining_sd),boot_remaining_ci)
   output[3,] <- c(sprintf("%.4f",reduction),sprintf("%.4f",boot_reduction_sd),boot_reduction_ci)
+
   
   return(as.data.frame(output))
 }
+
+
 
 
