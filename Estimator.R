@@ -6,7 +6,7 @@
 # Y must also be numeric
 # there shouldn't be a variable in more than one of the sets Y,W,R1,R2,Q,L,C  
 
-equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Difference", K=1000, alpha=0.05) {
+equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="difference", K=1000, alpha=0.05) {
   
   cl <- match.call()
   
@@ -17,13 +17,16 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
   
   data_inuse <- na.omit(data[,c(Y, W, R1, R2, Q, L, C)])
   # Even if R1 and R2 do not exhaust the data, the cases in neither R1 nor R2 are still retained.
-  # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the OD between R1 and R3.
+  # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the original disparity between R1 and R3.
+  # Get rid of rows with any infinite value
+  data_inuse <- data_inuse[is.finite(rowSums(data_inuse[,unlist(lapply(data_inuse, is.numeric))])),]
   
   # check Y
   if(missing(Y)) stop("Y must be provided.")
   if(!is.character(Y)) stop("Y must be a character scalar vector.",call.=FALSE)
   if(length(Y)>1) stop("Y must be only one variable",call.=FALSE)
   if(!is.numeric(data_inuse[,Y])) stop("Y must be numeric",call.=FALSE) 
+  if(any(!unique(data_inuse[,Y])%in%c(0,1)) & metric!="difference") stop("Y must only have values of 0 and 1 when the outcome metric is risk ratio or odds ratio.",call.=FALSE) 
 
   # check W
   if(missing(W)) stop("W must be provided.")
@@ -31,7 +34,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
   if(length(W)>1) stop("W must be only one variable.",call.=FALSE)
   if(length(unique(data_inuse[,W]))!=2) stop("W must be binary.",call.=FALSE)
   if(!is.factor(data_inuse[,W]) & !is.numeric(data_inuse[,W])) stop("W must be either factor or numeric.",call.=FALSE)
-  if(is.numeric(data_inuse[,W]) & (max(data_inuse[,W])!=1 | min(data_inuse[,W])!=0)) stop("W must only have values of 0 and 1.",call.=FALSE)
+  if(is.numeric(data_inuse[,W])) if(max(data_inuse[,W])!=1 | min(data_inuse[,W])!=0) stop("W must only have values of 0 and 1.",call.=FALSE)
   
   # check R1 and R2
   if(missing(R1)) stop("R1 must be provided.")
@@ -55,38 +58,56 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
   if(!is.null(L) & !is.character(L)) stop("L must be a character vector.",call.=FALSE)
   if(!is.null(C) & !is.character(C)) stop("C must be a character vector.",call.=FALSE)
   
+  # check if there is overlap between the covariate vectors
+  if(any(
+  any(Y==W, Y==R1, Y==R2, Y%in%Q, Y%in%L, Y%in%C),
+  any(W==R1, W==R2, W%in%Q, W%in%L, W%in%C),
+  any(R1==R2, R1%in%Q, R1%in%L, R1%in%C),
+  any(Q%in%L, Q%in%C),
+  any(L%in%C)
+  )) stop("Each variable can only have one role.",call.=FALSE)
+  
+  
+  R1_Q <- paste(sapply(Q, function(x) paste(R1,x,sep=":")), collapse="+")
+  R2_Q <- paste(sapply(Q, function(x) paste(R2,x,sep=":")), collapse="+")
+  
+  R1_C <- paste(sapply(C, function(x) paste(R1,x,sep=":")), collapse="+")
+  R2_C <- paste(sapply(C, function(x) paste(R2,x,sep=":")), collapse="+")
+  
+  R1_L <- paste(sapply(L, function(x) paste(R1,x,sep=":")), collapse="+")
+  R2_L <- paste(sapply(L, function(x) paste(R2,x,sep=":")), collapse="+")
   
   Q <- paste(Q,collapse="+")
   C <- paste(C,collapse="+")
   L <- paste(L,collapse="+")
   
   if (Q!="" & L!="" & C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,C,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,C,L,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,C,R1_Q,R2_Q,R1_C,R2_C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,C,L,R1_Q,R2_Q,R1_C,R2_C,R1_L,R2_L,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else if (Q!="" & L!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,L,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,R1_Q,R2_Q,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,L,R1_L,R2_L,R1_Q,R2_Q,sep="+"),sep="~"))
   } else if (Q!="" & C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,C,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,C,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,C,R1_Q,R2_Q,R1_C,R2_C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,C,R1_Q,R2_Q,R1_C,R2_C,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else if (L!="" & C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,C,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,C,L,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(R1,R2,C,R1_C,R2_C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(R1,R2,C,L,R1_C,R2_C,R1_L,R2_L,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else if (Q!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,R1_Q,R2_Q,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,R1_Q,R2_Q,sep="+"),sep="~"))
   } else if (L!="") {
     nume_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,L,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(R1,R2,L,R1_L,R2_L,sep="+"),sep="~"))
   } else if (C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,C,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(R1,R2,C,R1_C,R2_C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(R1,R2,C,R1_C,R2_C,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else {
@@ -106,6 +127,14 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
   deno_newdata[,R2] <- 1
   suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
   
+  ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
+  # However, if the subsample where either R1 or R2 equal to 1 is selected, the results will be somewhat different. I choose not to use such subsample, as noted above. 
+  # Technically, running the models with interactions between R1/R2 and all covariates is like doing subsample modeling within values of R1 and R2.
+  # When R1 and R2 are exhaustive, the model only makes use of information from three cells. 
+  # But when they are non-exhaustive, the model also uses information from the cell (R1=0, R2=0). 
+  # In particular, think of the main effects of Q,L,C, which will be estimated using information from all four cells when R1 and R2 are non-exhaustive. 
+  # I think essentially, by using the non-exhaustive sample, I'm assuming some conditional homogeneity of the Q,L,C effects across R1/R2 cells to improve precision.
+  
   if (C!="") {
     suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
     suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
@@ -118,14 +147,18 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
     post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(nume_pred/deno_pred)[data_inuse[,R2]==1])
   }
   
-  if (metric=="Risk Difference") {
+  if (metric=="difference") {
     original <- original_R1-original_R2
     remaining <- original_R1-post_R2
     reduction <- post_R2-original_R2
-  } else if (metric=="Risk Ratio") {
+  } else if (metric=="risk ratio") {
     original <- original_R1/original_R2
     remaining <- original_R1/post_R2
     reduction <- post_R2/original_R2
+  } else {
+    original <- (original_R1/(1-original_R1))/(original_R2/(1-original_R2))
+    remaining <- (original_R1/(1-original_R1))/(post_R2/(1-post_R2))
+    reduction <- (post_R2/(1-post_R2))/(original_R2/(1-original_R2))
   }
   
   boot_original <- boot_remaining <- boot_reduction <- rep(NA, K)
@@ -160,14 +193,18 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
       post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(nume_pred/deno_pred)[data_boot[,R2]==1])
     }
     
-    if (metric=="Risk Difference") {
+    if (metric=="difference") {
       original_boot <- original_R1-original_R2
       remaining_boot <- original_R1-post_R2
       reduction_boot <- post_R2-original_R2
-    } else if (metric=="Risk Ratio") {
+    } else if (metric=="risk ratio") {
       original_boot <- original_R1/original_R2
       remaining_boot <- original_R1/post_R2
       reduction_boot <- post_R2/original_R2
+    } else {
+      original_boot <- (original_R1/(1-original_R1))/(original_R2/(1-original_R2))
+      remaining_boot <- (original_R1/(1-original_R1))/(post_R2/(1-post_R2))
+      reduction_boot <- (post_R2/(1-post_R2))/(original_R2/(1-original_R2))
     }
     
     boot_original[i] <- original_boot
@@ -194,7 +231,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="Risk Di
   boot_remaining_ci <- paste("(",paste(sprintf("%.4f",boot_remaining_lower),sprintf("%.4f",boot_remaining_upper),sep=","),")",sep="")
   boot_reduction_ci <- paste("(",paste(sprintf("%.4f",boot_reduction_lower),sprintf("%.4f",boot_reduction_upper),sep=","),")",sep="")
   
-  output <- matrix(nrow=3,ncol=3,dimnames=list(c("Original Disparity","Remaining Disparity","Reduction in Disparity"),c("Estimate","Std. Error","Conf. Int.")))
+  output <- matrix(nrow=3,ncol=3,dimnames=list(c("Original Disparity","Remaining Disparity","Reduction in Disparity"),c("Estimate","Std. Error",paste((1-alpha)*100,"Conf. Int.",sep="% "))))
   output[1,] <- c(sprintf("%.4f",original),sprintf("%.4f",boot_original_sd),boot_original_ci)
   output[2,] <- c(sprintf("%.4f",remaining),sprintf("%.4f",boot_remaining_sd),boot_remaining_ci)
   output[3,] <- c(sprintf("%.4f",reduction),sprintf("%.4f",boot_reduction_sd),boot_reduction_ci)
