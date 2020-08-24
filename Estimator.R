@@ -25,6 +25,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(!is.numeric(percent)) stop("percent must be a numeric value.",call.=FALSE)
   if(!percent>0) stop("percent must be larger than 0.",call.=FALSE)
   
+  # check metric
+  if (!metric%in%c("difference","risk ratio","odds ratio")) stop("metric must be difference, risk ratio, or odds ratio.",call.=FALSE)
+  
   # check Y
   if(missing(Y)) stop("Y must be provided.")
   if(!is.character(Y)) stop("Y must be a character scalar vector.",call.=FALSE)
@@ -164,7 +167,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     original <- original_R1/original_R2
     remaining <- original_R1/post_R2
     reduction <- post_R2/original_R2
-  } else {
+  } else if (metric=="odds ratio") {
     original <- (original_R1/(1-original_R1))/(original_R2/(1-original_R2))
     remaining <- (original_R1/(1-original_R1))/(post_R2/(1-post_R2))
     reduction <- (post_R2/(1-post_R2))/(original_R2/(1-original_R2))
@@ -210,7 +213,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       original_boot <- original_R1/original_R2
       remaining_boot <- original_R1/post_R2
       reduction_boot <- post_R2/original_R2
-    } else {
+    } else if (metric=="odds ratio") {
       original_boot <- (original_R1/(1-original_R1))/(original_R2/(1-original_R2))
       remaining_boot <- (original_R1/(1-original_R1))/(post_R2/(1-post_R2))
       reduction_boot <- (post_R2/(1-post_R2))/(original_R2/(1-original_R2))
