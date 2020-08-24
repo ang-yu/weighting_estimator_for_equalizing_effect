@@ -6,11 +6,11 @@
 # Y must also be numeric
 # there shouldn't be a variable in more than one of the sets Y,W,R1,R2,Q,L,C  
 
-equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="difference", K=1000, alpha=0.05) {
+equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05) {
   
   cl <- match.call()
   
-  options(error = NULL)
+  options(error = NULL) # so that the error message when stopped doesn't invoke debugging interface. 
   
   # check data
   if(!is.data.frame(data)) stop("data must be a data.frame.",call.=FALSE)
@@ -20,6 +20,10 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="differe
   # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the original disparity between R1 and R3.
   # Get rid of rows with any infinite value
   data_inuse <- data_inuse[is.finite(rowSums(data_inuse[,unlist(lapply(data_inuse, is.numeric))])),]
+  
+  # check percent
+  if(!is.numeric(percent)) stop("percent must be a numeric value.",call.=FALSE)
+  if(!percent>0) stop("percent must be larger than 0.",call.=FALSE)
   
   # check Y
   if(missing(Y)) stop("Y must be provided.")
@@ -40,9 +44,12 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="differe
   if(missing(R1)) stop("R1 must be provided.")
   if(!is.character(R1)) stop("R1 must be a character scalar vector.",call.=FALSE)
   if(length(R1)>1) stop("R1 must be only one variable.",call.=FALSE)
-  if(length(unique(data_inuse[,R1]))!=2) stop("R1 must be binary.",call.=FALSE)
+  if(length(unique(data_inuse[,R1]))!=2 & length(unique(data_inuse[,R1]))!=1) stop("R1 must be either binary or constant.",call.=FALSE)
   if(!is.numeric(data_inuse[,R1])) stop("R1 must be numeric",call.=FALSE) 
-  if(max(data_inuse[,R1])!=1 | min(data_inuse[,R1])!=0) stop("R1 must only have values of 0 and 1.",call.=FALSE)
+  if((max(data_inuse[,R1])!=1 | min(data_inuse[,R1])!=0) & length(unique(data_inuse[,R1]))==2) stop("R1 must have values of either 0 and 1 or just 1 .",call.=FALSE)
+  if(length(unique(data_inuse[,R1]))==1) if(unique(data_inuse[,R1]!=1)) stop("R1 must have values of either 0 and 1 or just 1 .",call.=FALSE)
+  # It's fine for R1 to be constant 1 in the sample (when the target level of W is the sample mean).
+  # When R1==1 for all cases, the model will work as intended. 
   
   if(missing(R2)) stop("R2 must be provided.")
   if(!is.character(R2)) stop("R2 must be a character scalar vector.",call.=FALSE)
@@ -50,8 +57,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="differe
   if(length(unique(data_inuse[,R2]))!=2) stop("R2 must be binary.",call.=FALSE)
   if(!is.numeric(data_inuse[,R2])) stop("R2 must be numeric",call.=FALSE) 
   if(max(data_inuse[,R2])!=1 | min(data_inuse[,R2])!=0) stop("R2 must only have values of 0 and 1.",call.=FALSE)
-  
-  if(table(data_inuse[,R1], data_inuse[,R2])[2,2]!=0) stop("There must be no case with both R1 and R2 equal to 1.",call.=FALSE)
+  # note that R1 and R2 are allowed to be overlapped. For example, R1 may be intervened to have the average W across R1 and R2.
 
   # check Q, L, and C
   if(!is.null(Q) & !is.character(Q)) stop("Q must be a character vector.",call.=FALSE)
@@ -62,11 +68,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="differe
   if(any(
   any(Y==W, Y==R1, Y==R2, Y%in%Q, Y%in%L, Y%in%C),
   any(W==R1, W==R2, W%in%Q, W%in%L, W%in%C),
-  any(R1==R2, R1%in%Q, R1%in%L, R1%in%C),
+  any(R1%in%Q, R1%in%L, R1%in%C),
   any(Q%in%L, Q%in%C),
   any(L%in%C)
   )) stop("Each variable can only have one role.",call.=FALSE)
-  
+  # note that R1==R2 is allowed. It is at least possible to conceive of an intervention to make R2 members have R2 average of W, regardless of L.
   
   R1_Q <- paste(sapply(Q, function(x) paste(R1,x,sep=":")), collapse="+")
   R2_Q <- paste(sapply(Q, function(x) paste(R2,x,sep=":")), collapse="+")
@@ -126,6 +132,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="differe
   deno_newdata[,R1] <- 0
   deno_newdata[,R2] <- 1
   suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
+  # When R1==1 for every case in the sample, the two lines "nume_newdata[,R1] <- 1" and "deno_newdata[,R1] <- 0" will not affect the results at all. 
+  # When R1==1 for every case in the sample, "glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)" will be equivalent to logit with only R2, Q, C, R2:Q, R:C, which is as intended.
   
   ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
   # However, if the subsample where either R1 or R2 equal to 1 is selected, the results will be somewhat different. I choose not to use such subsample, as noted above. 
@@ -135,16 +143,17 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="differe
   # In particular, think of the main effects of Q,L,C, which will be estimated using information from all four cells when R1 and R2 are non-exhaustive. 
   # I think essentially, by using the non-exhaustive sample, I'm assuming some conditional homogeneity of the Q,L,C effects across R1/R2 cells to improve precision.
   
+  
   if (C!="") {
     suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
     suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
     original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1]*mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1])
     original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1])
-    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1])
+    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1])
   } else {
     original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1])
     original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1])
-    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(nume_pred/deno_pred)[data_inuse[,R2]==1])
+    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1])
   }
   
   if (metric=="difference") {
@@ -186,11 +195,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, metric="differe
       suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
       original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1]*mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1])
       original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1])
-      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1])
+      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1])
     } else {
       original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1])
       original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1])
-      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(nume_pred/deno_pred)[data_boot[,R2]==1])
+      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1])
     }
     
     if (metric=="difference") {
