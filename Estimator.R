@@ -1,16 +1,10 @@
 
 
-# R1, R2 must be binary variables in numeric format, and having 1 indicate membership, 0 indicate non-membership
-# R1 is the target group (the advantaged group), R2 is the base group (the disadvantaged group)
-# make sure sum(data$R1==1 & data$R2==1)=0
-# Y must also be numeric
-# there shouldn't be a variable in more than one of the sets Y,W,R1,R2,Q,L,C  
 
-equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05) {
-  
-  cl <- match.call()
+equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1) {
   
   options(error = NULL) # so that the error message when stopped doesn't invoke debugging interface. 
+  options(scipen=999) # so that the weight output is not printed in scientific notation
   
   # check data
   if(!is.data.frame(data)) stop("data must be a data.frame.",call.=FALSE)
@@ -27,6 +21,10 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   # check metric
   if (!metric%in%c("difference","risk ratio","odds ratio")) stop("metric must be difference, risk ratio, or odds ratio.",call.=FALSE)
+  
+  # check truncation_threshold
+  if (!is.numeric(truncation_threshold)) stop("truncation_threshold must be a numeric value.",call.=FALSE)
+  if (truncation_threshold<=0 | truncation_threshold>1) stop("truncation_threshold must be between (0,1].",call.=FALSE)
   
   # check Y
   if(missing(Y)) stop("Y must be provided.")
@@ -148,15 +146,41 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   
   if (C!="") {
-    suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
-    suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
-    original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1]*mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1])
-    original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1])
-    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1])
-  } else {
+
+      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
+      suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
+      # get the truncation threshold, which is the specified quantile of all weights (two adjustment weights and one intervention weight pooled together)
+      threshold <- quantile(c(mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1], 
+                  mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1], 
+                  (nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1]),
+                  probs=truncation_threshold)
+      # then any cases with weight higher than the threshold are not used.
+      # when truncation_threshold==1, all cases are used. 
+      retaining_index_R1 <- mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1]<=threshold
+      retaining_index_R2 <- mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1]<=threshold & (nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1]<=threshold
+      original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1][retaining_index_R1]*mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1][retaining_index_R1])
+      original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2])
+      post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2])
+      # highest and median used weight is stored.
+      highest_weight <- max(c(mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1][retaining_index_R1], 
+                            mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2],
+                            (nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2]))
+      median_weight <-  median(c(mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1][retaining_index_R1], 
+                               mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2],
+                               (nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2]))
+  } 
+  else {
+    
+    # When C is absent, original_R1 and original_R2 are not subject to weight truncation
     original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1])
     original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1])
-    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1])
+    # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
+    threshold <- quantile((nume_pred/deno_pred)[data_inuse[,R2]==1], probs=truncation_threshold)
+    retaining_index <- (nume_pred/deno_pred)[data_inuse[,R2]==1]<=threshold
+    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index])
+    highest_weight <- max((nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index])
+    median_weight <- median((nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index])
+    
   }
   
   if (metric=="difference") {
@@ -194,15 +218,33 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
     
     if (C!="") {
+      
       suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
       suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
-      original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1]*mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1])
-      original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1])
-      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1])
-    } else {
+      # get the truncation threshold, which is the specified quantile of all weights (two adjustment weights and one intervention weight pooled together)
+      threshold <- quantile(c(mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1], 
+                              mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1], 
+                              (nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]),
+                            probs=truncation_threshold)
+      # then any cases with weight higher than the threshold are not used.
+      # when truncation_threshold==1, all cases are used. 
+      retaining_index_R1 <- mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1]<=threshold
+      retaining_index_R2 <- mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]<=threshold & (nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]<=threshold
+      original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1][retaining_index_R1]*mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1][retaining_index_R1])
+      original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
+      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
+      
+    } 
+    else {
+      
+      # When C is absent, original_R1 and original_R2 are not subject to weight truncation
       original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1])
       original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1])
-      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1])
+      # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
+      threshold <- quantile((nume_pred/deno_pred)[data_boot[,R2]==1], probs=truncation_threshold)
+      retaining_index <- (nume_pred/deno_pred)[data_boot[,R2]==1]<=threshold
+      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index])
+      
     }
     
     if (metric=="difference") {
@@ -224,6 +266,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     boot_reduction[i] <- reduction_boot
     
   }
+  # note that for the bootstrap, instead of using cases not weight-truncated in the original sample, weight truncation is performed independently for each bootstrap sample.
   
   boot_original_sd <- sqrt(mean((boot_original-mean(boot_original))^2)) # use this formula instead of sd() so that the denominator is K instead of K-1
   boot_remaining_sd <- sqrt(mean((boot_remaining-mean(boot_remaining))^2))
@@ -243,13 +286,24 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   boot_remaining_ci <- paste("(",paste(sprintf("%.4f",boot_remaining_lower),sprintf("%.4f",boot_remaining_upper),sep=","),")",sep="")
   boot_reduction_ci <- paste("(",paste(sprintf("%.4f",boot_reduction_lower),sprintf("%.4f",boot_reduction_upper),sep=","),")",sep="")
   
-  output <- matrix(nrow=3,ncol=3,dimnames=list(c("Original Disparity","Remaining Disparity","Reduction in Disparity"),c("Estimate","Std. Error",paste((1-alpha)*100,"Conf. Int.",sep="% "))))
-  output[1,] <- c(sprintf("%.4f",original),sprintf("%.4f",boot_original_sd),boot_original_ci)
-  output[2,] <- c(sprintf("%.4f",remaining),sprintf("%.4f",boot_remaining_sd),boot_remaining_ci)
-  output[3,] <- c(sprintf("%.4f",reduction),sprintf("%.4f",boot_reduction_sd),boot_reduction_ci)
-
+  results <- matrix(nrow=3,ncol=3,dimnames=list(c("Original Disparity","Remaining Disparity","Reduction in Disparity"),c("Estimate","Std. Error",paste((1-alpha)*100,"Conf. Int.",sep="% "))))
+  results[1,] <- c(sprintf("%.4f",original),sprintf("%.4f",boot_original_sd),boot_original_ci)
+  results[2,] <- c(sprintf("%.4f",remaining),sprintf("%.4f",boot_remaining_sd),boot_remaining_ci)
+  results[3,] <- c(sprintf("%.4f",reduction),sprintf("%.4f",boot_reduction_sd),boot_reduction_ci)
+  results <- as.data.frame(results)
   
-  return(as.data.frame(output))
+  used_weights_info <- matrix(nrow=1,ncol=2,dimnames=list(NULL,c("Median","Highest")))
+  used_weights_info[1,] <- c(format(round(median_weight, 2), nsmall = 2), format(round(highest_weight, 2), nsmall = 2))
+  used_weights_info <- as.data.frame(used_weights_info)
+  row.names(used_weights_info) <- "Weight"
+  
+  output <- list()
+  output[[1]] <- results
+  output[[2]] <- used_weights_info
+  
+  names(output) <- c("results","used_weights_info")
+  
+  return(output)
 }
 
 
