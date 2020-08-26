@@ -1,6 +1,5 @@
 
 
-
 equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1) {
   
   options(error = NULL) # so that the error message when stopped doesn't invoke debugging interface. 
@@ -8,6 +7,10 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   # check data
   if(!is.data.frame(data)) stop("data must be a data.frame.",call.=FALSE)
+  if(missing(Y)) stop("Y must be provided.")
+  if(missing(W)) stop("W must be provided.")
+  if(missing(R1)) stop("R1 must be provided.")
+  if(missing(R2)) stop("R2 must be provided.")
   
   data_inuse <- na.omit(data[,c(Y, W, R1, R2, Q, L, C)])
   # Even if R1 and R2 do not exhaust the data, the cases in neither R1 nor R2 are still retained.
@@ -27,14 +30,12 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if (truncation_threshold<=0 | truncation_threshold>1) stop("truncation_threshold must be between (0,1].",call.=FALSE)
   
   # check Y
-  if(missing(Y)) stop("Y must be provided.")
   if(!is.character(Y)) stop("Y must be a character scalar vector.",call.=FALSE)
   if(length(Y)>1) stop("Y must be only one variable",call.=FALSE)
   if(!is.numeric(data_inuse[,Y])) stop("Y must be numeric",call.=FALSE) 
   if(any(!unique(data_inuse[,Y])%in%c(0,1)) & metric!="difference") stop("Y must only have values of 0 and 1 when the outcome metric is risk ratio or odds ratio.",call.=FALSE) 
 
   # check W
-  if(missing(W)) stop("W must be provided.")
   if(!is.character(W)) stop("W must be a character scalar vector.",call.=FALSE)
   if(length(W)>1) stop("W must be only one variable.",call.=FALSE)
   if(length(unique(data_inuse[,W]))!=2) stop("W must be binary.",call.=FALSE)
@@ -42,7 +43,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(is.numeric(data_inuse[,W])) if(max(data_inuse[,W])!=1 | min(data_inuse[,W])!=0) stop("W must only have values of 0 and 1.",call.=FALSE)
   
   # check R1 and R2
-  if(missing(R1)) stop("R1 must be provided.")
   if(!is.character(R1)) stop("R1 must be a character scalar vector.",call.=FALSE)
   if(length(R1)>1) stop("R1 must be only one variable.",call.=FALSE)
   if(length(unique(data_inuse[,R1]))!=2 & length(unique(data_inuse[,R1]))!=1) stop("R1 must be either binary or constant.",call.=FALSE)
@@ -52,7 +52,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # It's fine for R1 to be constant 1 in the sample (when the target level of W is the sample mean).
   # When R1==1 for all cases, the model will work as intended. 
   
-  if(missing(R2)) stop("R2 must be provided.")
   if(!is.character(R2)) stop("R2 must be a character scalar vector.",call.=FALSE)
   if(length(R2)>1) stop("R2 must be only one variable.",call.=FALSE)
   if(length(unique(data_inuse[,R2]))!=2) stop("R2 must be binary.",call.=FALSE)
@@ -230,35 +229,35 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       # when truncation_threshold==1, all cases are used. 
       retaining_index_R1 <- mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1]<=threshold
       retaining_index_R2 <- mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]<=threshold & (nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]<=threshold
-      original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1][retaining_index_R1]*mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1][retaining_index_R1])
-      original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
-      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
+      original_R1_boot <- mean(data_boot[,Y][data_boot[,R1]==1][retaining_index_R1]*mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1][retaining_index_R1])
+      original_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
+      post_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
       
     } 
     else {
       
-      # When C is absent, original_R1 and original_R2 are not subject to weight truncation
-      original_R1 <- mean(data_boot[,Y][data_boot[,R1]==1])
-      original_R2 <- mean(data_boot[,Y][data_boot[,R2]==1])
+      # When C is absent, original_R1_boot and original_R2_boot are not subject to weight truncation
+      original_R1_boot <- mean(data_boot[,Y][data_boot[,R1]==1])
+      original_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1])
       # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
       threshold <- quantile((nume_pred/deno_pred)[data_boot[,R2]==1], probs=truncation_threshold)
       retaining_index <- (nume_pred/deno_pred)[data_boot[,R2]==1]<=threshold
-      post_R2 <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index])
+      post_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index])
       
     }
     
     if (metric=="difference") {
-      original_boot <- original_R1-original_R2
-      remaining_boot <- original_R1-post_R2
-      reduction_boot <- post_R2-original_R2
+      original_boot <- original_R1_boot-original_R2_boot
+      remaining_boot <- original_R1_boot-post_R2_boot
+      reduction_boot <- post_R2_boot-original_R2_boot
     } else if (metric=="risk ratio") {
-      original_boot <- original_R1/original_R2
-      remaining_boot <- original_R1/post_R2
-      reduction_boot <- post_R2/original_R2
+      original_boot <- original_R1_boot/original_R2_boot
+      remaining_boot <- original_R1_boot/post_R2_boot
+      reduction_boot <- post_R2_boot/original_R2_boot
     } else if (metric=="odds ratio") {
-      original_boot <- (original_R1/(1-original_R1))/(original_R2/(1-original_R2))
-      remaining_boot <- (original_R1/(1-original_R1))/(post_R2/(1-post_R2))
-      reduction_boot <- (post_R2/(1-post_R2))/(original_R2/(1-original_R2))
+      original_boot <- (original_R1_boot/(1-original_R1_boot))/(original_R2_boot/(1-original_R2_boot))
+      remaining_boot <- (original_R1_boot/(1-original_R1_boot))/(post_R2_boot/(1-post_R2_boot))
+      reduction_boot <- (post_R2_boot/(1-post_R2_boot))/(original_R2_boot/(1-original_R2_boot))
     }
     
     boot_original[i] <- original_boot
@@ -297,11 +296,17 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   used_weights_info <- as.data.frame(used_weights_info)
   row.names(used_weights_info) <- "Weight"
   
+  averages <- matrix(nrow=1,ncol=3,dimnames=list(NULL,c("Original R1","Original R2","Post R2")))
+  averages[1,] <- c(format(round(original_R1, 4), nsmall = 4), format(round(original_R2, 4), nsmall = 4), format(round(post_R2, 4), nsmall = 4))  # always reporting 4 digits to the right of the decimal point
+  averages <- as.data.frame(averages)
+  row.names(averages) <- "Average"
+  
   output <- list()
   output[[1]] <- results
   output[[2]] <- used_weights_info
+  output[[3]] <- averages
   
-  names(output) <- c("results","used_weights_info")
+  names(output) <- c("results","used_weights_info","averages")
   
   return(output)
 }
