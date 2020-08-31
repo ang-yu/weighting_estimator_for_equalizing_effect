@@ -27,7 +27,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   # check truncation_threshold
   if (!is.numeric(truncation_threshold)) stop("truncation_threshold must be a numeric value.",call.=FALSE)
-  if (truncation_threshold<=0 | truncation_threshold>1) stop("truncation_threshold must be between (0,1].",call.=FALSE)
+  if (truncation_threshold<=0 | truncation_threshold>1) stop("truncation_threshold must be in (0,1].",call.=FALSE)
+  
+  # check alpha
+  if (!is.numeric(alpha)) stop("alpha must be a numeric value.",call.=FALSE)
+  if (alpha<=0 | alpha>=1) stop("alpha must be in (0,1).",call.=FALSE)
   
   # check Y
   if(!is.character(Y)) stop("Y must be a character scalar vector.",call.=FALSE)
@@ -310,7 +314,5 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   return(output)
 }
-
-
 
 
