@@ -309,8 +309,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   output[[1]] <- results
   output[[2]] <- used_weights_info
   output[[3]] <- averages
+  output[[4]] <- metric
   
-  names(output) <- c("results","used_weights_info","averages")
+  names(output) <- c("results","used_weights_info","averages","metric")
   
   return(output)
 }
