@@ -68,16 +68,63 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(!is.null(L) & !is.character(L)) stop("L must be a character vector.",call.=FALSE)
   if(!is.null(C) & !is.character(C)) stop("C must be a character vector.",call.=FALSE)
   
-  # check if there is overlap between the covariate vectors
-  if(any(
-  any(Y==W, Y==R1, Y==R2, Y%in%Q, Y%in%L, Y%in%C),
-  any(W==R1, W==R2, W%in%Q, W%in%L, W%in%C),
-  any(R1%in%Q, R1%in%L, R1%in%C),
-  any(Q%in%L, Q%in%C),
-  any(L%in%C)
-  )) stop("Each variable can only have one role.",call.=FALSE)
-  # note that R1==R2 is allowed. It is at least possible to conceive of an intervention to make R2 members have R2 average of W, regardless of L.
+  # check if there is overlap between the covariates vectors
+  if (!is.null(Q) & !is.null(L) & !is.null(C)) {
+    if(any(
+      any(Y==W, Y==R1, Y==R2, Y%in%Q, Y%in%L, Y%in%C),
+      any(W==R1, W==R2, W%in%Q, W%in%L, W%in%C),
+      any(R1%in%Q, R1%in%L, R1%in%C),
+      any(Q%in%L, Q%in%C),
+      any(L%in%C)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+    # note that R1==R2 is allowed. It is at least possible to conceive of an intervention to make R2 members have R2 average of W, regardless of L.
+  } else if (!is.null(Q) & !is.null(L)) {
+    if(any(
+      any(Y==W, Y==R1, Y==R2, Y%in%Q, Y%in%L),
+      any(W==R1, W==R2, W%in%Q, W%in%L),
+      any(R1%in%Q, R1%in%L),
+      any(Q%in%L)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+  } else if (!is.null(Q) & !is.null(C)) {
+    if(any(
+      any(Y==W, Y==R1, Y==R2, Y%in%Q, Y%in%C),
+      any(W==R1, W==R2, W%in%Q, W%in%C),
+      any(R1%in%Q, R1%in%C),
+      any(Q%in%C)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+  } else if (!is.null(L) & !is.null(C)) {
+    if(any(
+      any(Y==W, Y==R1, Y==R2, Y%in%L, Y%in%C),
+      any(W==R1, W==R2, W%in%L, W%in%C),
+      any(R1%in%L, R1%in%C),
+      any(L%in%C)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+  } else if (!is.null(Q)) {
+    if(any(
+      any(Y==W, Y==R1, Y==R2, Y%in%Q),
+      any(W==R1, W==R2, W%in%Q),
+      any(R1%in%Q)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+  } else if (!is.null(L)) {
+    if(any(
+      any(Y==W, Y==R1, Y==R2, Y%in%L),
+      any(W==R1, W==R2, W%in%L),
+      any(R1%in%L)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+  } else if (!is.null(C)) {
+    if(any(
+      any(Y==W, Y==R1, Y==R2, Y%in%C),
+      any(W==R1, W==R2, W%in%C),
+      any(R1%in%C)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+  } else {
+    if(any(
+      any(Y==W, Y==R1, Y==R2),
+      any(W==R1, W==R2)
+    )) stop("Each variable can only have one role.",call.=FALSE)
+  }
   
+
   # check common_support
   if (!is.logical(common_support)) stop("common_support must be logical.",call.=FALSE)
   if (is.null(Q) & is.null(C) & isTRUE(common_support)) stop("common support restriction should only be applied when Q or C is specified.",call.=FALSE)
@@ -131,21 +178,26 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     deno_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
   }
   
+############################ under construction ############################
   # when common_support is specified (only use cases in the common support), dropped base group (R2) members who don't have target group (R1) counterparts in terms of Q and C.
   # note that logical checks in the beginning have made sure when common_support=T, at least one of Q and C is supplied.
   # the logical checks also make sure that R1 is not a constant.
-  if (Q!="" & C!="") {
-    common_support_formula <- as.formula(paste(R1, paste(Q,C,sep="+"),sep="~"))
-  } else if (Q!="") {
-    common_support_formula <- as.formula(paste(R1, paste(Q,sep="+"),sep="~"))
-  } else {
-    common_support_formula <- as.formula(paste(R1, paste(C,sep="+"),sep="~"))
+  if (common_support==T) {
+    if (Q!="" & C!="") {
+      common_support_formula <- as.formula(paste(R1, paste(Q,C,sep="+"),sep="~"))
+    } else if (Q!="") {
+      common_support_formula <- as.formula(paste(R1, paste(Q,sep="+"),sep="~"))
+    } else {
+      common_support_formula <- as.formula(paste(R1, paste(C,sep="+"),sep="~"))
+    }
   }
-  
+
   # common_support_mol <- glm(common_support_formula, family=binomial(link = "logit"), data=data_inuse)
   # common_support_pred <- predict(common_support_mol, newdata = data_inuse[data_inuse[,R2]==1,], type = "response") 
   # min(common_support_pred)
   # sum(common_support_pred<0.01)
+  
+############################ under construction ############################
   
   # get the numerator and denominator for the intervention weight
   nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)
@@ -341,4 +393,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   return(output)
 }
+
+
+
 
