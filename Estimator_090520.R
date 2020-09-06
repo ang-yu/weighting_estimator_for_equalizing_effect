@@ -1,6 +1,6 @@
 
 
-equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1) {
+equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1, common_support=F) {
   
   options(error = NULL) # so that the error message when stopped doesn't invoke debugging interface. 
   options(scipen=999) # so that the weight output is not printed in scientific notation
@@ -43,8 +43,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(!is.character(W)) stop("W must be a character scalar vector.",call.=FALSE)
   if(length(W)>1) stop("W must be only one variable.",call.=FALSE)
   if(length(unique(data_inuse[,W]))!=2) stop("W must be binary.",call.=FALSE)
-  if(!is.factor(data_inuse[,W]) & !is.numeric(data_inuse[,W])) stop("W must be either factor or numeric.",call.=FALSE)
-  if(is.numeric(data_inuse[,W])) if(max(data_inuse[,W])!=1 | min(data_inuse[,W])!=0) stop("W must only have values of 0 and 1.",call.=FALSE)
+  if(!is.numeric(data_inuse[,W])) stop("W must be numeric.",call.=FALSE)
+  if(max(data_inuse[,W])!=1 | min(data_inuse[,W])!=0) stop("W must only have values of 0 and 1.",call.=FALSE)
   
   # check R1 and R2
   if(!is.character(R1)) stop("R1 must be a character scalar vector.",call.=FALSE)
@@ -78,6 +78,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   )) stop("Each variable can only have one role.",call.=FALSE)
   # note that R1==R2 is allowed. It is at least possible to conceive of an intervention to make R2 members have R2 average of W, regardless of L.
   
+  # check common_support
+  if (!is.logical(common_support)) stop("common_support must be logical.",call.=FALSE)
+  if (is.null(Q) & is.null(C) & isTRUE(common_support)) stop("common support restriction should only be applied when Q or C is specified.",call.=FALSE)
+  if (sum(data_inuse[,R1]==1 & data_inuse[,R2]==1)==sum(data_inuse[,R1]==1) & isTRUE(common_support)) stop("common support restriction should only be applied when R2 is not strictly a subset of R1.",call.=FALSE)
+  
   R1_Q <- paste(sapply(Q, function(x) paste(R1,x,sep=":")), collapse="+")
   R2_Q <- paste(sapply(Q, function(x) paste(R2,x,sep=":")), collapse="+")
   
@@ -91,6 +96,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   C <- paste(C,collapse="+")
   L <- paste(L,collapse="+")
   
+  # generate formulas needed according to the presence or absence of Q, L, and C.
   if (Q!="" & L!="" & C!="") {
     nume_formula <- as.formula(paste(W, paste(R1,R2,Q,C,R1_Q,R2_Q,R1_C,R2_C,sep="+"),sep="~"))
     deno_formula <- as.formula(paste(W, paste(R1,R2,Q,C,L,R1_Q,R2_Q,R1_C,R2_C,R1_L,R2_L,sep="+"),sep="~"))
@@ -125,11 +131,29 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     deno_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
   }
   
+  # when common_support is specified (only use cases in the common support), dropped base group (R2) members who don't have target group (R1) counterparts in terms of Q and C.
+  # note that logical checks in the beginning have made sure when common_support=T, at least one of Q and C is supplied.
+  # the logical checks also make sure that R1 is not a constant.
+  if (Q!="" & C!="") {
+    common_support_formula <- as.formula(paste(R1, paste(Q,C,sep="+"),sep="~"))
+  } else if (Q!="") {
+    common_support_formula <- as.formula(paste(R1, paste(Q,sep="+"),sep="~"))
+  } else {
+    common_support_formula <- as.formula(paste(R1, paste(C,sep="+"),sep="~"))
+  }
+  
+  # common_support_mol <- glm(common_support_formula, family=binomial(link = "logit"), data=data_inuse)
+  # common_support_pred <- predict(common_support_mol, newdata = data_inuse[data_inuse[,R2]==1,], type = "response") 
+  # min(common_support_pred)
+  # sum(common_support_pred<0.01)
+  
+  # get the numerator and denominator for the intervention weight
   nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)
   nume_newdata <- data_inuse
   nume_newdata[,R1] <- 1
   nume_newdata[,R2] <- 0
   suppressWarnings( nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response") )
+  nume_pred[data_inuse[,W]==0] <- 1-nume_pred[data_inuse[,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
   
   deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_inuse)
   deno_newdata <- data_inuse
@@ -138,6 +162,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
   # When R1==1 for every case in the sample, the two lines "nume_newdata[,R1] <- 1" and "deno_newdata[,R1] <- 0" will not affect the results at all. 
   # When R1==1 for every case in the sample, "glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)" will be equivalent to logit with only R2, Q, C, R2:Q, R:C, which is as intended.
+  deno_pred[data_inuse[,W]==0] <- 1-deno_pred[data_inuse[,W]==0] 
   
   ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
   # However, if the subsample where either R1 or R2 equal to 1 is selected, the results will be somewhat different. I choose not to use such subsample, as noted above. 
@@ -146,7 +171,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # But when they are non-exhaustive, the model also uses information from the cell (R1=0, R2=0). 
   # In particular, think of the main effects of Q,L,C, which will be estimated using information from all four cells when R1 and R2 are non-exhaustive. 
   # I think essentially, by using the non-exhaustive sample, I'm assuming some conditional homogeneity of the Q,L,C effects across R1/R2 cells to improve precision.
-  
   
   if (C!="") {
 
@@ -213,12 +237,14 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     nume_newdata[,R1] <- 1
     nume_newdata[,R2] <- 0
     suppressWarnings( nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response") )
+    nume_pred[data_boot[,W]==0] <- 1-nume_pred[data_boot[,W]==0] 
     
     deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_boot)
     deno_newdata <- data_boot
     deno_newdata[,R1] <- 0
     deno_newdata[,R2] <- 1
     suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
+    deno_pred[data_boot[,W]==0] <- 1-deno_pred[data_boot[,W]==0] 
     
     if (C!="") {
       
@@ -306,14 +332,13 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   row.names(averages) <- "Average"
   
   output <- list()
-  output[[1]] <- results
-  output[[2]] <- used_weights_info
+  output[[1]] <- metric
+  output[[2]] <- results
   output[[3]] <- averages
-  output[[4]] <- metric
-  
-  names(output) <- c("results","used_weights_info","averages","metric")
+  output[[4]] <- used_weights_info
+
+  names(output) <- c("metric","results","averages","used_weights_info")
   
   return(output)
 }
-
 
