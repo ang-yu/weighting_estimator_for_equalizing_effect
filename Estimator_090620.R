@@ -130,6 +130,59 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if (is.null(Q) & is.null(C) & isTRUE(common_support)) stop("common support restriction should only be applied when Q or C is specified.",call.=FALSE)
   if (sum(data_inuse[,R1]==1 & data_inuse[,R2]==1)==sum(data_inuse[,R1]==1) & isTRUE(common_support)) stop("common support restriction should only be applied when R2 is not strictly a subset of R1.",call.=FALSE)
   
+  
+  # When common_support is specified (only use cases in the common support), dropped base group (R2) members who don't have target group (R1) counterparts in terms of Q and C.
+  # And R1 counterparts are defined as in the convex hull of Q, C vectors of R1 members.
+  # Note that logical checks in the beginning have made sure when common_support=T, at least one of Q and C is supplied.
+  # The logical checks also make sure that R1 is not a constant.
+  # Also, the logical checks make sure that common_support==T only if R2 is not strictly a subset of R1, because in that case the convex hull test will pass all R2 members anyway.
+  # Note that the convex hull test only rules out extrapolation, but not interpolation. 
+  # Key reference is p.155 in King and Zeng (2006)
+  if (common_support==T) {
+    
+    if (Q!="" & C!="") {
+      left_hand <- data_inuse[data_inuse[,R1]==1,c(Q,C)]   # left-hand-side matrix for linear programming
+      right_hand <- data_inuse[data_inuse[,R2]==1,c(Q,C)]  # right-hand-side matrix
+      common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),paste(C,collapse="+"),sep="+"), sep="" ) )
+    } else if (Q!="") {
+      left_hand <- data_inuse[data_inuse[,R1]==1,c(Q)]
+      right_hand <- data_inuse[data_inuse[,R2]==1,c(Q)]
+      common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),sep="+"), sep="" ) )
+    } else {
+      left_hand <- data_inuse[data_inuse[,R1]==1,c(C)]
+      right_hand <- data_inuse[data_inuse[,R2]==1,c(C)]
+      common_support_formula <- as.formula( paste("~", paste("0",paste(C,collapse="+"),sep="+"), sep="" ) )
+    }
+  
+  left_hand <- na.omit(left_hand)
+  left_hand <- model.matrix(common_support_formula, data = left_hand) # expand factor variables if there is any.
+  right_hand <- na.omit(right_hand)  
+  right_hand <- model.matrix(common_support_formula, data = right_hand) # expand factor variables if there is any.
+  
+  left_hand_transpose <- rbind(t(left_hand), rep(1, nrow(left_hand))) # transpose and add a row of 1s
+  obje <- c(rep(0, nrow(left_hand)))
+  dire <- c(rep("=", ncol(left_hand) + 1))
+  
+  hull.test <- function (i) {
+    right_hand_vector <- c(right_hand[i,], 1)  # take the ith row in the matrix and concatenate a 1
+    lp.result <- lp(objective.in = obje, const.mat = left_hand_transpose, const.dir = dire, const.rhs = right_hand_vector)  
+    # checking whether there is some nonzero coefficients that add to 1 and can combine all persons in A to get person B
+    # note that the lp implicitly assumes every variable to be >= 0, which is needed for convex combination.
+    return(lp.result$status)  # if 0, then in the hull; if 2, then not. 
+  }
+  
+  hull_result <- sapply(1:nrow(right_hand), hull.test)
+  common_support_retain <- rep(1, nrow(data_inuse))
+  common_support_retain[data_inuse[,R2]==1][hull_result==2] <- 0
+  
+  n_common_support_drop <- sum(common_support_retain==0)
+  
+  data_inuse <- data_inuse[common_support_retain==1,]
+  
+  }
+  
+  
+  # generate interaction terms between R1/R2 and Q/L/C to be used in the formulas
   R1_Q <- paste(sapply(Q, function(x) paste(R1,x,sep=":")), collapse="+")
   R2_Q <- paste(sapply(Q, function(x) paste(R2,x,sep=":")), collapse="+")
   
@@ -139,9 +192,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   R1_L <- paste(sapply(L, function(x) paste(R1,x,sep=":")), collapse="+")
   R2_L <- paste(sapply(L, function(x) paste(R2,x,sep=":")), collapse="+")
   
-  Q <- paste(Q,collapse="+")
-  C <- paste(C,collapse="+")
-  L <- paste(L,collapse="+")
+  Q_f <- paste(Q,collapse="+")
+  C_f <- paste(C,collapse="+")
+  L_f <- paste(L,collapse="+")
   
   # generate formulas needed according to the presence or absence of Q, L, and C.
   if (Q!="" & L!="" & C!="") {
@@ -178,26 +231,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     deno_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
   }
   
-############################ under construction ############################
-  # when common_support is specified (only use cases in the common support), dropped base group (R2) members who don't have target group (R1) counterparts in terms of Q and C.
-  # note that logical checks in the beginning have made sure when common_support=T, at least one of Q and C is supplied.
-  # the logical checks also make sure that R1 is not a constant.
-  if (common_support==T) {
-    if (Q!="" & C!="") {
-      common_support_formula <- as.formula(paste(R1, paste(Q,C,sep="+"),sep="~"))
-    } else if (Q!="") {
-      common_support_formula <- as.formula(paste(R1, paste(Q,sep="+"),sep="~"))
-    } else {
-      common_support_formula <- as.formula(paste(R1, paste(C,sep="+"),sep="~"))
-    }
-  }
 
-  # common_support_mol <- glm(common_support_formula, family=binomial(link = "logit"), data=data_inuse)
-  # common_support_pred <- predict(common_support_mol, newdata = data_inuse[data_inuse[,R2]==1,], type = "response") 
-  # min(common_support_pred)
-  # sum(common_support_pred<0.01)
-  
-############################ under construction ############################
   
   # get the numerator and denominator for the intervention weight
   nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)
@@ -393,7 +427,4 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   return(output)
 }
-
-
-
 
