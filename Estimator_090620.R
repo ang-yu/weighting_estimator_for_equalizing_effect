@@ -12,11 +12,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(missing(R1)) stop("R1 must be provided.")
   if(missing(R2)) stop("R2 must be provided.")
   
-  data_inuse <- na.omit(data[,c(Y, W, R1, R2, Q, L, C)])
+  data_nom <- na.omit(data[,c(Y, W, R1, R2, Q, L, C)])
   # Even if R1 and R2 do not exhaust the data, the cases in neither R1 nor R2 are still retained.
   # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the original disparity between R1 and R3.
   # Get rid of rows with any infinite value
-  data_inuse <- data_inuse[is.finite(rowSums(data_inuse[,unlist(lapply(data_inuse, is.numeric))])),]
+  data_nom <- data_nom[is.finite(rowSums(data_nom[,unlist(lapply(data_nom, is.numeric))])),]
   
   # check percent
   if(!is.numeric(percent)) stop("percent must be a numeric value.",call.=FALSE)
@@ -36,31 +36,31 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # check Y
   if(!is.character(Y)) stop("Y must be a character scalar vector.",call.=FALSE)
   if(length(Y)>1) stop("Y must be only one variable",call.=FALSE)
-  if(!is.numeric(data_inuse[,Y])) stop("Y must be numeric",call.=FALSE) 
-  if(any(!unique(data_inuse[,Y])%in%c(0,1)) & metric!="difference") stop("Y must only have values of 0 and 1 when the outcome metric is risk ratio or odds ratio.",call.=FALSE) 
+  if(!is.numeric(data_nom[,Y])) stop("Y must be numeric",call.=FALSE) 
+  if(any(!unique(data_nom[,Y])%in%c(0,1)) & metric!="difference") stop("Y must only have values of 0 and 1 when the outcome metric is risk ratio or odds ratio.",call.=FALSE) 
 
   # check W
   if(!is.character(W)) stop("W must be a character scalar vector.",call.=FALSE)
   if(length(W)>1) stop("W must be only one variable.",call.=FALSE)
-  if(length(unique(data_inuse[,W]))!=2) stop("W must be binary.",call.=FALSE)
-  if(!is.numeric(data_inuse[,W])) stop("W must be numeric.",call.=FALSE)
-  if(max(data_inuse[,W])!=1 | min(data_inuse[,W])!=0) stop("W must only have values of 0 and 1.",call.=FALSE)
+  if(length(unique(data_nom[,W]))!=2) stop("W must be binary.",call.=FALSE)
+  if(!is.numeric(data_nom[,W])) stop("W must be numeric.",call.=FALSE)
+  if(max(data_nom[,W])!=1 | min(data_nom[,W])!=0) stop("W must only have values of 0 and 1.",call.=FALSE)
   
   # check R1 and R2
   if(!is.character(R1)) stop("R1 must be a character scalar vector.",call.=FALSE)
   if(length(R1)>1) stop("R1 must be only one variable.",call.=FALSE)
-  if(length(unique(data_inuse[,R1]))!=2 & length(unique(data_inuse[,R1]))!=1) stop("R1 must be either binary or constant.",call.=FALSE)
-  if(!is.numeric(data_inuse[,R1])) stop("R1 must be numeric",call.=FALSE) 
-  if((max(data_inuse[,R1])!=1 | min(data_inuse[,R1])!=0) & length(unique(data_inuse[,R1]))==2) stop("R1 must have values of either 0 and 1 or just 1 .",call.=FALSE)
-  if(length(unique(data_inuse[,R1]))==1) if(unique(data_inuse[,R1]!=1)) stop("R1 must have values of either 0 and 1 or just 1 .",call.=FALSE)
+  if(length(unique(data_nom[,R1]))!=2 & length(unique(data_nom[,R1]))!=1) stop("R1 must be either binary or constant.",call.=FALSE)
+  if(!is.numeric(data_nom[,R1])) stop("R1 must be numeric",call.=FALSE) 
+  if((max(data_nom[,R1])!=1 | min(data_nom[,R1])!=0) & length(unique(data_nom[,R1]))==2) stop("R1 must have values of either 0 and 1 or just 1 .",call.=FALSE)
+  if(length(unique(data_nom[,R1]))==1) if(unique(data_nom[,R1]!=1)) stop("R1 must have values of either 0 and 1 or just 1 .",call.=FALSE)
   # It's fine for R1 to be constant 1 in the sample (when the target level of W is the sample mean).
   # When R1==1 for all cases, the model will work as intended. 
   
   if(!is.character(R2)) stop("R2 must be a character scalar vector.",call.=FALSE)
   if(length(R2)>1) stop("R2 must be only one variable.",call.=FALSE)
-  if(length(unique(data_inuse[,R2]))!=2) stop("R2 must be binary.",call.=FALSE)
-  if(!is.numeric(data_inuse[,R2])) stop("R2 must be numeric",call.=FALSE) 
-  if(max(data_inuse[,R2])!=1 | min(data_inuse[,R2])!=0) stop("R2 must only have values of 0 and 1.",call.=FALSE)
+  if(length(unique(data_nom[,R2]))!=2) stop("R2 must be binary.",call.=FALSE)
+  if(!is.numeric(data_nom[,R2])) stop("R2 must be numeric",call.=FALSE) 
+  if(max(data_nom[,R2])!=1 | min(data_nom[,R2])!=0) stop("R2 must only have values of 0 and 1.",call.=FALSE)
   # note that R1 and R2 are allowed to be overlapped. For example, R1 may be intervened to have the average W across R1 and R2.
 
   # check Q, L, and C
@@ -124,11 +124,10 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     )) stop("Each variable can only have one role.",call.=FALSE)
   }
   
-
   # check common_support
   if (!is.logical(common_support)) stop("common_support must be logical.",call.=FALSE)
   if (is.null(Q) & is.null(C) & isTRUE(common_support)) stop("common support restriction should only be applied when Q or C is specified.",call.=FALSE)
-  if (sum(data_inuse[,R1]==1 & data_inuse[,R2]==1)==sum(data_inuse[,R1]==1) & isTRUE(common_support)) stop("common support restriction should only be applied when R2 is not strictly a subset of R1.",call.=FALSE)
+  if (sum(data_nom[,R1]==1 & data_nom[,R2]==1)==sum(data_nom[,R1]==1) & isTRUE(common_support)) stop("common support restriction should only be applied when R2 is not strictly a subset of R1.",call.=FALSE)
   
   
   # When common_support is specified (only use cases in the common support), dropped base group (R2) members who don't have target group (R1) counterparts in terms of Q and C.
@@ -141,16 +140,16 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if (common_support==T) {
     
     if (!is.null(Q) & !is.null(C)) {
-      left_hand <- data_inuse[data_inuse[,R1]==1,c(Q,C)]   # left-hand-side matrix for linear programming
-      right_hand <- data_inuse[data_inuse[,R2]==1,c(Q,C)]  # right-hand-side matrix
+      left_hand <- data_nom[data_nom[,R1]==1,c(Q,C)]   # left-hand-side matrix for linear programming
+      right_hand <- data_nom[data_nom[,R2]==1,c(Q,C)]  # right-hand-side matrix
       common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),paste(C,collapse="+"),sep="+"), sep="" ) )
     } else if (!is.null(Q)) {
-      left_hand <- data_inuse[data_inuse[,R1]==1,c(Q)]
-      right_hand <- data_inuse[data_inuse[,R2]==1,c(Q)]
+      left_hand <- data_nom[data_nom[,R1]==1,c(Q), drop = FALSE]
+      right_hand <- data_nom[data_nom[,R2]==1,c(Q), drop = FALSE]
       common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),sep="+"), sep="" ) )
     } else {
-      left_hand <- data_inuse[data_inuse[,R1]==1,c(C)]
-      right_hand <- data_inuse[data_inuse[,R2]==1,c(C)]
+      left_hand <- data_nom[data_nom[,R1]==1,c(C), drop = FALSE]
+      right_hand <- data_nom[data_nom[,R2]==1,c(C), drop = FALSE]
       common_support_formula <- as.formula( paste("~", paste("0",paste(C,collapse="+"),sep="+"), sep="" ) )
     }
   
@@ -169,18 +168,19 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     # checking whether there is some nonzero coefficients that add to 1 and can combine all persons in A to get person B
     # note that the lp implicitly assumes every variable to be >= 0, which is needed for convex combination.
     return(lp.result$status)  # if 0, then in the hull; if 2, then not. 
-  }
+  } 
   
   hull_result <- sapply(1:nrow(right_hand), hull.test)
-  common_support_retain <- rep(1, nrow(data_inuse))
-  common_support_retain[data_inuse[,R2]==1][hull_result==2] <- 0
+  common_support_retain <- rep(1, nrow(data_nom))
+  common_support_retain[data_nom[,R2]==1][hull_result==2] <- 0
   
   n_common_support_drop <- sum(common_support_retain==0)
+  data_nom_cs <- data_nom[common_support_retain==1,] # rows in the common support
+  data_nom_ncs <- data_nom[common_support_retain==1,] # rows not in the common support
   
-  data_inuse <- data_inuse[common_support_retain==1,]
-  
+  } else {
+    data_nom_cs <- data_nom # if common_support=F, data_nom just becomes data_nom_cs  
   }
-  
   
   # generate interaction terms between R1/R2 and Q/L/C to be used in the formulas
   R1_Q <- paste(sapply(Q, function(x) paste(R1,x,sep=":")), collapse="+")
@@ -231,24 +231,22 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     deno_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
   }
   
-
-  
   # get the numerator and denominator for the intervention weight
-  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)
-  nume_newdata <- data_inuse
+  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_nom_cs)
+  nume_newdata <- data_nom_cs
   nume_newdata[,R1] <- 1
   nume_newdata[,R2] <- 0
   suppressWarnings( nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response") )
-  nume_pred[data_inuse[,W]==0] <- 1-nume_pred[data_inuse[,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
+  nume_pred[data_nom_cs[,W]==0] <- 1-nume_pred[data_nom_cs[,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
   
-  deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_inuse)
-  deno_newdata <- data_inuse
+  deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_nom_cs)
+  deno_newdata <- data_nom_cs
   deno_newdata[,R1] <- 0
   deno_newdata[,R2] <- 1
   suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
   # When R1==1 for every case in the sample, the two lines "nume_newdata[,R1] <- 1" and "deno_newdata[,R1] <- 0" will not affect the results at all. 
-  # When R1==1 for every case in the sample, "glm(nume_formula, family=binomial(link = "logit"), data=data_inuse)" will be equivalent to logit with only R2, Q, C, R2:Q, R:C, which is as intended.
-  deno_pred[data_inuse[,W]==0] <- 1-deno_pred[data_inuse[,W]==0] 
+  # When R1==1 for every case in the sample, "glm(nume_formula, family=binomial(link = "logit"), data=data_nom_cs)" will be equivalent to logit with only R2, Q, C, R2:Q, R:C, which is as intended.
+  deno_pred[data_nom_cs[,W]==0] <- 1-deno_pred[data_nom_cs[,W]==0] 
   
   ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
   # However, if the subsample where either R1 or R2 equal to 1 is selected, the results will be somewhat different. I choose not to use such subsample, as noted above. 
@@ -260,39 +258,41 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   if (C!="") {
 
-      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
-      suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_inuse), type="response") )
+      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_nom_cs), type="response") )
+      suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_nom_cs), type="response") )
       # get the truncation threshold, which is the specified quantile of all weights (two adjustment weights and one intervention weight pooled together)
-      threshold <- quantile(c(mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1], 
-                  mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1], 
-                  (nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1]),
+      threshold <- quantile(c(mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1], 
+                  mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1], 
+                  (nume_pred/deno_pred)[data_nom_cs[,R2]==1]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1]),
                   probs=truncation_threshold)
       # then any cases with weight higher than the threshold are not used.
       # when truncation_threshold==1, all cases are used. 
-      retaining_index_R1 <- mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1]<=threshold
-      retaining_index_R2 <- mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1]<=threshold & (nume_pred/deno_pred)[data_inuse[,R2]==1]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1]<=threshold
-      original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1][retaining_index_R1]*mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1][retaining_index_R1])
-      original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2])
-      post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2])
+      
+      retaining_index_R1 <- mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1]<=threshold
+      retaining_index_R2 <- mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1]<=threshold & (nume_pred/deno_pred)[data_nom_cs[,R2]==1]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1]<=threshold
+      original_R1 <- mean(data_nom_cs[,Y][data_nom_cs[,R1]==1][retaining_index_R1]*mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1][retaining_index_R1])
+      original_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2])
+      post_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2])
+      
       # highest and median used weight is stored.
-      highest_weight <- max(c(mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1][retaining_index_R1], 
-                            mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2],
-                            (nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2]))
-      median_weight <-  median(c(mean(data_inuse[,R1]==1)/adjustment_R1_pred[data_inuse[,R1]==1][retaining_index_R1], 
-                               mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2],
-                               (nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index_R2]*mean(data_inuse[,R2]==1)/adjustment_R2_pred[data_inuse[,R2]==1][retaining_index_R2]))
+      highest_weight <- max(c(mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1][retaining_index_R1], 
+                            mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2],
+                            (nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2]))
+      median_weight <-  median(c(mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1][retaining_index_R1], 
+                               mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2],
+                               (nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2]))
   } 
   else {
     
     # When C is absent, original_R1 and original_R2 are not subject to weight truncation
-    original_R1 <- mean(data_inuse[,Y][data_inuse[,R1]==1])
-    original_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1])
+    original_R1 <- mean(data_nom_cs[,Y][data_nom_cs[,R1]==1])
+    original_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1])
     # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
-    threshold <- quantile((nume_pred/deno_pred)[data_inuse[,R2]==1], probs=truncation_threshold)
-    retaining_index <- (nume_pred/deno_pred)[data_inuse[,R2]==1]<=threshold
-    post_R2 <- mean(data_inuse[,Y][data_inuse[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index])
-    highest_weight <- max((nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index])
-    median_weight <- median((nume_pred/deno_pred)[data_inuse[,R2]==1][retaining_index])
+    threshold <- quantile((nume_pred/deno_pred)[data_nom_cs[,R2]==1], probs=truncation_threshold)
+    retaining_index <- (nume_pred/deno_pred)[data_nom_cs[,R2]==1]<=threshold
+    post_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index])
+    highest_weight <- max((nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index])
+    median_weight <- median((nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index])
     
   }
   
@@ -315,8 +315,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   for (i in 1:K) {
     
-    indices <- sample(1:nrow(data_inuse), nrow(data_inuse), replace = TRUE)
-    data_boot <- data_inuse[indices,]
+    indices <- sample(1:nrow(data_nom_cs), nrow(data_nom_cs), replace = TRUE)
+    data_boot <- data_nom_cs[indices,]
     
     nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_boot)
     nume_newdata <- data_boot
@@ -381,7 +381,10 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     boot_reduction[i] <- reduction_boot
     
   }
-  # note that for the bootstrap, instead of using cases not weight-truncated in the original sample, weight truncation is performed independently for each bootstrap sample.
+  # Note that for the bootstrap, instead of using cases not weight-truncated in the original sample, weight truncation is performed independently for each bootstrap sample.
+  # But common support restriction is applied to the entire sample and is not independently evaluated for each bootstrap sample.
+  # The logic is that weight estimation is part of the estimation procedure of which the sampling variation should be assessed, but 
+  # common support restriction is more of a pre-estimation processing step: the effects on some units should not be estimated at all.
   
   boot_original_sd <- sqrt(mean((boot_original-mean(boot_original))^2)) # use this formula instead of sd() so that the denominator is K instead of K-1
   boot_remaining_sd <- sqrt(mean((boot_remaining-mean(boot_remaining))^2))
@@ -427,4 +430,3 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   return(output)
 }
-
