@@ -140,11 +140,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # Key reference is p.155 in King and Zeng (2006)
   if (common_support==T) {
     
-    if (Q!="" & C!="") {
+    if (!is.null(Q) & !is.null(C)) {
       left_hand <- data_inuse[data_inuse[,R1]==1,c(Q,C)]   # left-hand-side matrix for linear programming
       right_hand <- data_inuse[data_inuse[,R2]==1,c(Q,C)]  # right-hand-side matrix
       common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),paste(C,collapse="+"),sep="+"), sep="" ) )
-    } else if (Q!="") {
+    } else if (!is.null(Q)) {
       left_hand <- data_inuse[data_inuse[,R1]==1,c(Q)]
       right_hand <- data_inuse[data_inuse[,R2]==1,c(Q)]
       common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),sep="+"), sep="" ) )
@@ -192,9 +192,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   R1_L <- paste(sapply(L, function(x) paste(R1,x,sep=":")), collapse="+")
   R2_L <- paste(sapply(L, function(x) paste(R2,x,sep=":")), collapse="+")
   
-  Q_f <- paste(Q,collapse="+")
-  C_f <- paste(C,collapse="+")
-  L_f <- paste(L,collapse="+")
+  Q <- paste(Q,collapse="+")
+  C <- paste(C,collapse="+")
+  L <- paste(L,collapse="+")
   
   # generate formulas needed according to the presence or absence of Q, L, and C.
   if (Q!="" & L!="" & C!="") {
