@@ -130,6 +130,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if (sum(data_nom[,R1]==1 & data_nom[,R2]==1)==sum(data_nom[,R1]==1) & isTRUE(common_support)) stop("common support restriction should only be applied when R2 is not strictly a subset of R1.",call.=FALSE)
   
   
+  data_R1 <- data_nom[data_nom[,R1]==1,]
+  data_R2 <- data_nom[data_nom[,R2]==1,]
+  
   # When common_support is specified (only use cases in the common support), dropped base group (R2) members who don't have target group (R1) counterparts in terms of Q and C.
   # And R1 counterparts are defined as in the convex hull of Q, C vectors of R1 members.
   # Note that logical checks in the beginning have made sure when common_support=T, at least one of Q and C is supplied.
@@ -140,16 +143,16 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if (common_support==T) {
     
     if (!is.null(Q) & !is.null(C)) {
-      left_hand <- data_nom[data_nom[,R1]==1,c(Q,C)]   # left-hand-side matrix for linear programming
-      right_hand <- data_nom[data_nom[,R2]==1,c(Q,C)]  # right-hand-side matrix
+      left_hand <- data_R1[,c(Q,C)]   # left-hand-side matrix for linear programming
+      right_hand <- data_R2[,c(Q,C)]  # right-hand-side matrix
       common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),paste(C,collapse="+"),sep="+"), sep="" ) )
     } else if (!is.null(Q)) {
-      left_hand <- data_nom[data_nom[,R1]==1,c(Q), drop = FALSE]
-      right_hand <- data_nom[data_nom[,R2]==1,c(Q), drop = FALSE]
+      left_hand <- data_R1[,c(Q), drop = FALSE]
+      right_hand <- data_R2[,c(Q), drop = FALSE]
       common_support_formula <- as.formula( paste("~", paste("0",paste(Q,collapse="+"),sep="+"), sep="" ) )
     } else {
-      left_hand <- data_nom[data_nom[,R1]==1,c(C), drop = FALSE]
-      right_hand <- data_nom[data_nom[,R2]==1,c(C), drop = FALSE]
+      left_hand <- data_R1[,c(C), drop = FALSE]
+      right_hand <- data_R2[,c(C), drop = FALSE]
       common_support_formula <- as.formula( paste("~", paste("0",paste(C,collapse="+"),sep="+"), sep="" ) )
     }
   
@@ -171,26 +174,14 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   } 
   
   hull_result <- sapply(1:nrow(right_hand), hull.test)
-  common_support_retain <- rep(1, nrow(data_nom))
-  common_support_retain[data_nom[,R2]==1][hull_result==2] <- 0
-  
-  n_common_support_drop <- sum(common_support_retain==0)
-  data_nom_cs <- data_nom[common_support_retain==1,] # rows in the common support
-  data_nom_ncs <- data_nom[common_support_retain==1,] # rows not in the common support
+  common_support_indicator <- rep(1, nrow(data_R2))
+  common_support_indicator[hull_result==2] <- 0
   
   } else {
-    data_nom_cs <- data_nom # if common_support=F, data_nom just becomes data_nom_cs  
+    common_support_indicator <- rep(1, nrow(data_R2))
+    # if common_support=F, all R2 members are assumed to be in the common support
   }
   
-  # generate interaction terms between R1/R2 and Q/L/C to be used in the formulas
-  R1_Q <- paste(sapply(Q, function(x) paste(R1,x,sep=":")), collapse="+")
-  R2_Q <- paste(sapply(Q, function(x) paste(R2,x,sep=":")), collapse="+")
-  
-  R1_C <- paste(sapply(C, function(x) paste(R1,x,sep=":")), collapse="+")
-  R2_C <- paste(sapply(C, function(x) paste(R2,x,sep=":")), collapse="+")
-  
-  R1_L <- paste(sapply(L, function(x) paste(R1,x,sep=":")), collapse="+")
-  R2_L <- paste(sapply(L, function(x) paste(R2,x,sep=":")), collapse="+")
   
   Q <- paste(Q,collapse="+")
   C <- paste(C,collapse="+")
@@ -198,101 +189,102 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   # generate formulas needed according to the presence or absence of Q, L, and C.
   if (Q!="" & L!="" & C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,C,R1_Q,R2_Q,R1_C,R2_C,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,C,L,R1_Q,R2_Q,R1_C,R2_C,R1_L,R2_L,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(Q,C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q,C,L,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else if (Q!="" & L!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,R1_Q,R2_Q,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,L,R1_L,R2_L,R1_Q,R2_Q,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(Q,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q,L,sep="+"),sep="~"))
   } else if (Q!="" & C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,C,R1_Q,R2_Q,R1_C,R2_C,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,C,R1_Q,R2_Q,R1_C,R2_C,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(Q,C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q,C,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else if (L!="" & C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,C,R1_C,R2_C,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,C,L,R1_C,R2_C,R1_L,R2_L,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(C,L,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else if (Q!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,Q,R1_Q,R2_Q,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,Q,R1_Q,R2_Q,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(Q,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q,sep="+"),sep="~"))
   } else if (L!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,L,R1_L,R2_L,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, 1, sep="~")) # intercept only
+    deno_formula <- as.formula(paste(W, paste(L,sep="+"),sep="~"))
   } else if (C!="") {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,C,R1_C,R2_C,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,C,R1_C,R2_C,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, paste(C,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(C,sep="+"),sep="~"))
     adjustment_R1_formula <- as.formula(paste(R1,C,sep="~"))
     adjustment_R2_formula <- as.formula(paste(R2,C,sep="~"))
   } else {
-    nume_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
-    deno_formula <- as.formula(paste(W, paste(R1,R2,sep="+"),sep="~"))
+    nume_formula <- as.formula(paste(W, 1 ,sep="~"))
+    deno_formula <- as.formula(paste(W, 1 ,sep="~"))
   }
   
   # get the numerator and denominator for the intervention weight
-  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_nom_cs)
-  nume_newdata <- data_nom_cs
-  nume_newdata[,R1] <- 1
-  nume_newdata[,R2] <- 0
-  suppressWarnings( nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response") )
-  nume_pred[data_nom_cs[,W]==0] <- 1-nume_pred[data_nom_cs[,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
+  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1) 
+  suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2, type = "response") )
+  nume_pred[data_R2[,W]==0] <- 1-nume_pred[data_R2[,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
   
-  deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_nom_cs)
-  deno_newdata <- data_nom_cs
-  deno_newdata[,R1] <- 0
-  deno_newdata[,R2] <- 1
-  suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
-  # When R1==1 for every case in the sample, the two lines "nume_newdata[,R1] <- 1" and "deno_newdata[,R1] <- 0" will not affect the results at all. 
-  # When R1==1 for every case in the sample, "glm(nume_formula, family=binomial(link = "logit"), data=data_nom_cs)" will be equivalent to logit with only R2, Q, C, R2:Q, R:C, which is as intended.
-  deno_pred[data_nom_cs[,W]==0] <- 1-deno_pred[data_nom_cs[,W]==0] 
+  deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2)
+  suppressWarnings( deno_pred <- predict(deno_mol, type = "response") )
+  deno_pred[data_R2[,W]==0] <- 1-deno_pred[data_R2[,W]==0] 
   
   ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
-  # However, if the subsample where either R1 or R2 equal to 1 is selected, the results will be somewhat different. I choose not to use such subsample, as noted above. 
-  # Technically, running the models with interactions between R1/R2 and all covariates is like doing subsample modeling within values of R1 and R2.
-  # When R1 and R2 are exhaustive, the model only makes use of information from three cells. 
-  # But when they are non-exhaustive, the model also uses information from the cell (R1=0, R2=0). 
-  # In particular, think of the main effects of Q,L,C, which will be estimated using information from all four cells when R1 and R2 are non-exhaustive. 
-  # I think essentially, by using the non-exhaustive sample, I'm assuming some conditional homogeneity of the Q,L,C effects across R1/R2 cells to improve precision.
+  # However, if the subsample where either R1 or R2 equal to 1 is retained, the results will be somewhat different. I choose not to use such subsample, as noted above. 
+  # Also, all cases in data_nom are used to fit the models, and will have predicted weights for convenience. But only those in data_nom_cs will actually have their outcomes multiplied by the interventional weight.
+  
+  # the intervention weight
+  intervene_w <- rep(1, nrow(data_R2))
+  intervene_w[common_support_indicator==1] <- (percent/100)*(nume_pred/deno_pred)[common_support_indicator==1]
+  # so, intervention weight is estimated for those R2 members who are in the interventional common support. Other R2 members just have interventional weight=1.
+  # note that percentage intervention is already incorporated.
   
   if (C!="") {
 
-      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_nom_cs), type="response") )
-      suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_nom_cs), type="response") )
+      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_nom), type="response") )  # I've checked, when everyone is in R1, this gives predicted probability=1 for everyone.
+      suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_nom), type="response") )
+      
+      # the R1 adjustment weight
+      adjust_R1_w <- mean(data_nom[,R1]==1)/adjustment_R1_pred[data_nom[,R1]==1]
+      
+      # the R2 adjustment weight
+      adjust_R2_w <- mean(data_nom[,R2]==1)/adjustment_R2_pred[data_nom[,R2]==1]
+      
+      
       # get the truncation threshold, which is the specified quantile of all weights (two adjustment weights and one intervention weight pooled together)
-      threshold <- quantile(c(mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1], 
-                  mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1], 
-                  (nume_pred/deno_pred)[data_nom_cs[,R2]==1]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1]),
-                  probs=truncation_threshold)
+      threshold <- quantile(c(adjust_R1_w, 
+                              adjust_R2_w,
+                              intervene_w*adjust_R2_w),
+                            probs=truncation_threshold)
       # then any cases with weight higher than the threshold are not used.
       # when truncation_threshold==1, all cases are used. 
+      retaining_indicator_R1 <- adjust_R1_w <= threshold
+      retaining_indicator_R2 <- adjust_R2_w <= threshold & intervene_w*adjust_R2_w <= threshold
       
-      retaining_index_R1 <- mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1]<=threshold
-      retaining_index_R2 <- mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1]<=threshold & (nume_pred/deno_pred)[data_nom_cs[,R2]==1]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1]<=threshold
-      original_R1 <- mean(data_nom_cs[,Y][data_nom_cs[,R1]==1][retaining_index_R1]*mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1][retaining_index_R1])
-      original_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2])
-      post_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2])
+      original_R1 <- mean((data_R1[,Y]*adjust_R1_w)[retaining_indicator_R1])
+      original_R2 <- mean((data_R2[,Y]*adjust_R2_w)[retaining_indicator_R2])
+      post_R2 <- mean((data_R2[,Y]*intervene_w*adjust_R2_w)[retaining_indicator_R2])
       
       # highest and median used weight is stored.
-      highest_weight <- max(c(mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1][retaining_index_R1], 
-                            mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2],
-                            (nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2]))
-      median_weight <-  median(c(mean(data_nom_cs[,R1]==1)/adjustment_R1_pred[data_nom_cs[,R1]==1][retaining_index_R1], 
-                               mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2],
-                               (nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index_R2]*mean(data_nom_cs[,R2]==1)/adjustment_R2_pred[data_nom_cs[,R2]==1][retaining_index_R2]))
-  } 
-  else {
+      highest_weight <- max(c(adjust_R1_w[retaining_indicator_R1], 
+                              adjust_R2_w[retaining_indicator_R2],
+                              intervene_w*adjust_R2_w[retaining_indicator_R2]))
+      median_weight <-  median(c(adjust_R1_w[retaining_indicator_R1], 
+                                 adjust_R2_w[retaining_indicator_R2],
+                                 (intervene_w*adjust_R2_w)[retaining_indicator_R2]))
+  } else {
     
     # When C is absent, original_R1 and original_R2 are not subject to weight truncation
-    original_R1 <- mean(data_nom_cs[,Y][data_nom_cs[,R1]==1])
-    original_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1])
+    original_R1 <- mean(data_R1[,Y])
+    original_R2 <- mean(data_R2[,Y])
     # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
-    threshold <- quantile((nume_pred/deno_pred)[data_nom_cs[,R2]==1], probs=truncation_threshold)
-    retaining_index <- (nume_pred/deno_pred)[data_nom_cs[,R2]==1]<=threshold
-    post_R2 <- mean(data_nom_cs[,Y][data_nom_cs[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index])
-    highest_weight <- max((nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index])
-    median_weight <- median((nume_pred/deno_pred)[data_nom_cs[,R2]==1][retaining_index])
+    threshold <- quantile(intervene_w, probs=truncation_threshold)
+    retaining_indicator <- intervene_w <= threshold
+    post_R2 <- mean((data_R2[,Y]*intervene_w)[retaining_indicator])
+    highest_weight <- max(intervene_w[retaining_indicator])
+    median_weight <- median(intervene_w[retaining_indicator])
     
   }
   
@@ -315,50 +307,83 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   for (i in 1:K) {
     
-    indices <- sample(1:nrow(data_nom_cs), nrow(data_nom_cs), replace = TRUE)
-    data_boot <- data_nom_cs[indices,]
+    indices <- sample(1:nrow(data_nom), nrow(data_nom), replace = TRUE)
+    data_boot <- data_nom[indices,]
     
-    nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_boot)
-    nume_newdata <- data_boot
-    nume_newdata[,R1] <- 1
-    nume_newdata[,R2] <- 0
-    suppressWarnings( nume_pred <- predict(nume_mol, newdata = nume_newdata, type = "response") )
-    nume_pred[data_boot[,W]==0] <- 1-nume_pred[data_boot[,W]==0] 
+    data_R1 <- data_boot[data_boot[,R1]==1,]
+    data_R2 <- data_boot[data_boot[,R2]==1,]
     
-    deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_boot)
-    deno_newdata <- data_boot
-    deno_newdata[,R1] <- 0
-    deno_newdata[,R2] <- 1
-    suppressWarnings( deno_pred <- predict(deno_mol, newdata = deno_newdata, type = "response") )
-    deno_pred[data_boot[,W]==0] <- 1-deno_pred[data_boot[,W]==0] 
+    if (common_support==T) {
+      
+      if (!is.null(Q) & !is.null(C)) {
+        left_hand <- data_R1[,c(Q,C)]   
+        right_hand <- data_R2[,c(Q,C)]  
+      } else if (!is.null(Q)) {
+        left_hand <- data_R1[c(Q), drop = FALSE]
+        right_hand <- data_R2[c(Q), drop = FALSE]
+      } else {
+        left_hand <- data_R1[c(C), drop = FALSE]
+        right_hand <- data_R2[c(C), drop = FALSE]
+      }
+      
+      left_hand <- na.omit(left_hand)
+      left_hand <- model.matrix(common_support_formula, data = left_hand) 
+      right_hand <- na.omit(right_hand)  
+      right_hand <- model.matrix(common_support_formula, data = right_hand) 
+      
+      left_hand_transpose <- rbind(t(left_hand), rep(1, nrow(left_hand)))
+      obje <- c(rep(0, nrow(left_hand)))
+      dire <- c(rep("=", ncol(left_hand) + 1))
+      
+      hull_result <- sapply(1:nrow(right_hand), hull.test)
+      common_support_indicator <- rep(1, nrow(data_R2))
+      common_support_indicator[hull_result==2] <- 0
+      
+    } else {
+      common_support_indicator <- rep(1, nrow(data_R2))
+      # if common_support=F, all R2 members are assumed to be in the common support
+    }
+    
+    nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1) 
+    suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2, type = "response") )
+    nume_pred[data_R2[,W]==0] <- 1-nume_pred[data_R2[,W]==0]  
+    
+    deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2)
+    suppressWarnings( deno_pred <- predict(deno_mol, type = "response") )
+    deno_pred[data_R2[,W]==0] <- 1-deno_pred[data_R2[,W]==0] 
+    
+    intervene_w <- rep(1, nrow(data_R2))
+    intervene_w[common_support_indicator==1] <- (percent/100)*(nume_pred/deno_pred)[common_support_indicator==1]
     
     if (C!="") {
-      
-      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
+  
+      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_boot), type="response") ) 
       suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
-      # get the truncation threshold, which is the specified quantile of all weights (two adjustment weights and one intervention weight pooled together)
-      threshold <- quantile(c(mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1], 
-                              mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1], 
-                              (nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]),
+      
+      adjust_R1_w <- mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1]
+    
+      adjust_R2_w <- mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]
+      
+      threshold <- quantile(c(adjust_R1_w, 
+                              adjust_R2_w,
+                              intervene_w*adjust_R2_w),
                             probs=truncation_threshold)
-      # then any cases with weight higher than the threshold are not used.
-      # when truncation_threshold==1, all cases are used. 
-      retaining_index_R1 <- mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1]<=threshold
-      retaining_index_R2 <- mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]<=threshold & (nume_pred/deno_pred)[data_boot[,R2]==1]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1]<=threshold
-      original_R1_boot <- mean(data_boot[,Y][data_boot[,R1]==1][retaining_index_R1]*mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1][retaining_index_R1])
-      original_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
-      post_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index_R2]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index_R2]*mean(data_boot[,R2]==1)/adjustment_R2_pred[data_boot[,R2]==1][retaining_index_R2])
       
-    } 
-    else {
+      retaining_indicator_R1 <- adjust_R1_w <= threshold
+      retaining_indicator_R2 <- adjust_R2_w <= threshold & intervene_w*adjust_R2_w <= threshold
       
-      # When C is absent, original_R1_boot and original_R2_boot are not subject to weight truncation
-      original_R1_boot <- mean(data_boot[,Y][data_boot[,R1]==1])
-      original_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1])
-      # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
-      threshold <- quantile((nume_pred/deno_pred)[data_boot[,R2]==1], probs=truncation_threshold)
-      retaining_index <- (nume_pred/deno_pred)[data_boot[,R2]==1]<=threshold
-      post_R2_boot <- mean(data_boot[,Y][data_boot[,R2]==1][retaining_index]*(percent/100)*(nume_pred/deno_pred)[data_boot[,R2]==1][retaining_index])
+      original_R1_boot <- mean((data_R1[,Y]*adjust_R1_w)[retaining_indicator_R1])
+      original_R2_boot <- mean((data_R2[,Y]*adjust_R2_w)[retaining_indicator_R2])
+      post_R2_boot <- mean((data_R2[,Y]*intervene_w*adjust_R2_w)[retaining_indicator_R2])
+    
+    } else {
+  
+      original_R1_boot <- mean(data_R1[,Y])
+      original_R2_boot <- mean(data_R2[,Y])
+      
+      threshold <- quantile(intervene_w, probs=truncation_threshold)
+      retaining_indicator <- intervene_w <= threshold
+      post_R2_boot <- mean((data_R2[,Y]*intervene_w)[retaining_indicator])
       
     }
     
@@ -382,9 +407,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     
   }
   # Note that for the bootstrap, instead of using cases not weight-truncated in the original sample, weight truncation is performed independently for each bootstrap sample.
-  # But common support restriction is applied to the entire sample and is not independently evaluated for each bootstrap sample.
-  # The logic is that weight estimation is part of the estimation procedure of which the sampling variation should be assessed, but 
-  # common support restriction is more of a pre-estimation processing step: the effects on some units should not be estimated at all.
+  # The same is applied to common support restriction. 
   
   boot_original_sd <- sqrt(mean((boot_original-mean(boot_original))^2)) # use this formula instead of sd() so that the denominator is K instead of K-1
   boot_remaining_sd <- sqrt(mean((boot_remaining-mean(boot_remaining))^2))
@@ -430,3 +453,5 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   return(output)
 }
+
+
