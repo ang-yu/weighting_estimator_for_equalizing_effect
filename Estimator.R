@@ -252,7 +252,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       # the R2 adjustment weight
       adjust_R2_w <- mean(data_nom[,R2]==1)/adjustment_R2_pred[data_nom[,R2]==1]
       
-      
       # get the truncation threshold, which is the specified quantile of all weights (two adjustment weights and one intervention weight pooled together)
       threshold <- quantile(c(adjust_R1_w, 
                               adjust_R2_w,
@@ -315,15 +314,15 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     
     if (common_support==T) {
       
-      if (!is.null(Q) & !is.null(C)) {
+      if (Q!="" & C!="") {
         left_hand <- data_R1[,c(Q,C)]   
         right_hand <- data_R2[,c(Q,C)]  
-      } else if (!is.null(Q)) {
-        left_hand <- data_R1[c(Q), drop = FALSE]
-        right_hand <- data_R2[c(Q), drop = FALSE]
+      } else if (Q!="") {
+        left_hand <- data_R1[,c(Q), drop = FALSE]
+        right_hand <- data_R2[,c(Q), drop = FALSE]
       } else {
-        left_hand <- data_R1[c(C), drop = FALSE]
-        right_hand <- data_R2[c(C), drop = FALSE]
+        left_hand <- data_R1[,c(C), drop = FALSE]
+        right_hand <- data_R2[,c(C), drop = FALSE]
       }
       
       left_hand <- na.omit(left_hand)
@@ -457,7 +456,3 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   return(output)
 }
-
-
-
-
