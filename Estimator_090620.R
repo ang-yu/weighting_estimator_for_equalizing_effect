@@ -181,7 +181,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     common_support_indicator <- rep(1, nrow(data_R2))
     # if common_support=F, all R2 members are assumed to be in the common support
   }
-  
+  n_not_in_common_support <- sum(common_support_indicator==0)
   
   Q <- paste(Q,collapse="+")
   C <- paste(C,collapse="+")
@@ -448,10 +448,16 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   output[[2]] <- results
   output[[3]] <- averages
   output[[4]] <- used_weights_info
+  output[[5]] <- nrow(data)-nrow(data_nom)
+  output[[6]] <- n_not_in_common_support
 
-  names(output) <- c("metric","results","averages","used_weights_info")
+  names(output) <- c("metric","results","averages","info on weights used",
+                     "number of rows dropped due to missing values",
+                     "number of R2 members who don't have comparable R1 members in Q or C")
   
   return(output)
 }
+
+
 
 
