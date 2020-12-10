@@ -358,7 +358,7 @@ for (i in 1:K) {
   intervene_w <- rep(1, nrow(data_R2))
   intervene_w[common_support_indicator==1] <- (percent/100)*(nume_pred/deno_pred)[common_support_indicator==1]
   
-  if (C!="") {
+  if (!is.null(C)) {
     
     suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_boot), type="response") ) 
     suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
