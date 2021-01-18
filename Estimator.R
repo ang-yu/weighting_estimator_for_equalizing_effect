@@ -501,7 +501,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   output[[5]] <- nrow(data)-nrow(data_nom)
   output[[6]] <- n_not_in_common_support
   
-  names(output) <- c("metric","results","averages","info on weights used",
+  names(output) <- c("metric","results","averages","info on weights used (not including survey weights)",
                      "number of rows dropped due to missing values",
                      "number of R2 members who don't have comparable R1 members in Q or C")
   
