@@ -1,6 +1,6 @@
 
 
-equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1, common_support=F) {
+equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1, common_support=F, survey_weight=NULL) {
   
   options(error = NULL) # so that the error message when stopped doesn't invoke debugging interface. 
   options(scipen=999) # so that the weight output is not printed in scientific notation
@@ -12,7 +12,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(missing(R1)) stop("R1 must be provided.")
   if(missing(R2)) stop("R2 must be provided.")
   
-  data_nom <- na.omit(data[,c(Y, W, R1, R2, Q, L, C)])
+  if (FALSE %in% (c(Y, W, R1, R2, Q, L, C, survey_weight) %in% colnames(data)))  stop("The variables must be in the data.")
+  data_nom <- na.omit(data[,c(Y, W, R1, R2, Q, L, C, survey_weight)])
   # Even if R1 and R2 do not exhaust the data, the cases in neither R1 nor R2 are still retained.
   # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the original disparity between R1 and R3.
   # Get rid of rows with any infinite value
@@ -67,6 +68,14 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(!is.null(Q) & !is.character(Q)) stop("Q must be a character vector.",call.=FALSE)
   if(!is.null(L) & !is.character(L)) stop("L must be a character vector.",call.=FALSE)
   if(!is.null(C) & !is.character(C)) stop("C must be a character vector.",call.=FALSE)
+  
+  # check survey_weight
+  if(!is.null(survey_weight) & !is.character(survey_weight)) stop("survey_weight must be a character scalar vector.",call.=FALSE)
+  if(length(survey_weight)>1) stop("survey_weight must be only one variable.",call.=FALSE)
+  if(!is.null(survey_weight) & !is.numeric(data_nom[,survey_weight])) stop("survey_weight must be numeric",call.=FALSE) 
+  if (is.null(survey_weight)) {
+    data_nom$survey_weight <- 1
+    survey_weight <- "survey_weight"}   # if no survey weight is supplied, simply use 1 for everyone
   
   # check if there is overlap between the covariates vectors
   if (!is.null(Q) & !is.null(L) & !is.null(C)) {
@@ -130,7 +139,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if (sum(data_nom[,R1]==1 & data_nom[,R2]==1)==sum(data_nom[,R1]==1) & isTRUE(common_support)) stop("common support restriction should only be applied when R2 is not strictly a subset of R1.",call.=FALSE)
   # Below I detect nonempty levels in the factor variables in Q/C in the base group that doesn't have corresponding nonempty levels in the target group.
   # If common_support=T, then there's no problem, as those who don't have corresponding levels will not be used in model estimation.
-  # Otherwise, noncorresponding levels become a problem, because when glm model will give an error when the model fitted using target group data is used to predict treatment for the base group, as in the numerator of the interventional weight.
+  # Otherwise, non-corresponding levels become a problem, because when glm model will give an error when the model fitted using target group data is used to predict treatment for the base group, as in the numerator of the interventional weight.
   if (isFALSE(common_support)) {
     corresponding_level_indicator <- c(TRUE)
     if (!is.null(Q) & !is.null(C)) {
@@ -262,11 +271,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   }
   
   # get the numerator and denominator for the intervention weight
-  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1) 
+  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight]) 
   suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
   nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
   
-  deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
+  deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2, weights = data_R2[,survey_weight]) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
   suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
   deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
   
@@ -282,8 +291,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   if (C_!="") {
     
-    suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_nom), type="response") )  # I've checked, when everyone is in R1, this gives predicted probability=1 for everyone.
-    suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_nom), type="response") )
+    suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_nom, weights = data_nom[,survey_weight]), type="response") )  # I've checked, when everyone is in R1, this gives predicted probability=1 for everyone.
+    suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_nom, weights = data_nom[,survey_weight]), type="response") )
     
     # the R1 adjustment weight
     adjust_R1_w <- mean(data_nom[,R1]==1)/adjustment_R1_pred[data_nom[,R1]==1]
@@ -291,7 +300,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     # the R2 adjustment weight
     adjust_R2_w <- mean(data_nom[,R2]==1)/adjustment_R2_pred[data_nom[,R2]==1]
     
-    # get the truncation threshold, which is the specified quantile of all weights (two adjustment weights and one intervention weight pooled together)
+    # get the truncation threshold, which is the specified quantile of all weights but not the survey weight (two adjustment weights and one intervention weight pooled together)
     threshold <- quantile(c(adjust_R1_w, 
                             adjust_R2_w,
                             intervene_w*adjust_R2_w),
@@ -301,11 +310,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     retaining_indicator_R1 <- adjust_R1_w <= threshold
     retaining_indicator_R2 <- adjust_R2_w <= threshold & intervene_w*adjust_R2_w <= threshold
     
-    original_R1 <- weighted.mean(x=data_R1[retaining_indicator_R1,Y], w=adjust_R1_w[retaining_indicator_R1])
-    original_R2 <- weighted.mean(x=data_R2[retaining_indicator_R2,Y], w=adjust_R2_w[retaining_indicator_R2])
-    post_R2 <- weighted.mean(data_R2[retaining_indicator_R2,Y], w=(intervene_w*adjust_R2_w)[retaining_indicator_R2])
+    original_R1 <- weighted.mean(x=data_R1[retaining_indicator_R1,Y], w=(adjust_R1_w*data_R1[,survey_weight])[retaining_indicator_R1])
+    original_R2 <- weighted.mean(x=data_R2[retaining_indicator_R2,Y], w=(adjust_R2_w*data_R2[,survey_weight])[retaining_indicator_R2])
+    post_R2 <- weighted.mean(data_R2[retaining_indicator_R2,Y], w=(intervene_w*adjust_R2_w*data_R2[,survey_weight])[retaining_indicator_R2])
     
-    # highest and median used weight is stored.
+    # highest and median used weight (not accounting for the survey weight) is stored.
     highest_weight <- max(c(adjust_R1_w[retaining_indicator_R1], 
                             adjust_R2_w[retaining_indicator_R2],
                             intervene_w*adjust_R2_w[retaining_indicator_R2]))
@@ -315,12 +324,14 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   } else {
     
     # When C is absent, original_R1 and original_R2 are not subject to weight truncation
-    original_R1 <- mean(data_R1[,Y])
-    original_R2 <- mean(data_R2[,Y])
+    original_R1 <- weighted.mean(x=data_R1[,Y], w=data_R1[,survey_weight])
+    original_R2 <- weighted.mean(x=data_R2[,Y], w=data_R2[,survey_weight])
+
     # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
     threshold <- quantile(intervene_w, probs=truncation_threshold)
     retaining_indicator <- intervene_w <= threshold
-    post_R2 <- weighted.mean(data_R2[retaining_indicator,Y], w=(intervene_w)[retaining_indicator])
+    post_R2 <- weighted.mean(data_R2[retaining_indicator,Y], w=(intervene_w*data_R2[,survey_weight])[retaining_indicator])
+    
     highest_weight <- max(intervene_w[retaining_indicator])
     median_weight <- median(intervene_w[retaining_indicator])
     
@@ -384,11 +395,11 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       common_support_indicator <- rep(1, nrow(data_R2))
     }
     
-    nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1) 
+    nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight]) 
     suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
     nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
     
-    deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
+    deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2, weights = data_R2[,survey_weight]) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
     suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
     deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
     
@@ -412,18 +423,17 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       retaining_indicator_R1 <- adjust_R1_w <= threshold
       retaining_indicator_R2 <- adjust_R2_w <= threshold & intervene_w*adjust_R2_w <= threshold
       
-      original_R1_boot <- weighted.mean(x=data_R1[retaining_indicator_R1,Y], w=adjust_R1_w[retaining_indicator_R1])
-      original_R2_boot <- weighted.mean(x=data_R2[retaining_indicator_R2,Y], w=adjust_R2_w[retaining_indicator_R2])
-      post_R2_boot <- weighted.mean(data_R2[retaining_indicator_R2,Y], w=(intervene_w*adjust_R2_w)[retaining_indicator_R2])
-      
+      original_R1_boot <- weighted.mean(x=data_R1[retaining_indicator_R1,Y], w=(adjust_R1_w*data_R1[,survey_weight])[retaining_indicator_R1])
+      original_R2_boot <- weighted.mean(x=data_R2[retaining_indicator_R2,Y], w=(adjust_R2_w*data_R2[,survey_weight])[retaining_indicator_R2])
+      post_R2_boot <- weighted.mean(data_R2[retaining_indicator_R2,Y], w=(intervene_w*adjust_R2_w*data_R2[,survey_weight])[retaining_indicator_R2])
     } else {
       
-      original_R1_boot <- mean(data_R1[,Y])
-      original_R2_boot <- mean(data_R2[,Y])
+      original_R1_boot <- weighted.mean(x=data_R1[,Y], w=data_R1[,survey_weight])
+      original_R2_boot <- weighted.mean(x=data_R2[,Y], w=data_R2[,survey_weight])
       
       threshold <- quantile(intervene_w, probs=truncation_threshold)
       retaining_indicator <- intervene_w <= threshold
-      post_R2_boot <- weighted.mean(data_R2[retaining_indicator,Y], w=(intervene_w)[retaining_indicator])
+      post_R2_boot <- weighted.mean(data_R2[retaining_indicator,Y], w=(intervene_w*data_R2[,survey_weight])[retaining_indicator])
       
     }
     
@@ -496,4 +506,5 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
                      "number of R2 members who don't have comparable R1 members in Q or C")
   
   return(output)
+  
 }
