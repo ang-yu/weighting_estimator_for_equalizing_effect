@@ -1,6 +1,6 @@
 
 
-equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1, common_support=F, survey_weight=NULL) {
+equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, metric="difference", K=1000, alpha=0.05, truncation_threshold=1, common_support=F, survey_weight=NULL, model="logit") {
   
   options(error = NULL) # so that the error message when stopped doesn't invoke debugging interface. 
   options(scipen=999) # so that the weight output is not printed in scientific notation
@@ -12,12 +12,14 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(missing(R1)) stop("R1 must be provided.")
   if(missing(R2)) stop("R2 must be provided.")
   
-  if (FALSE %in% (c(Y, W, R1, R2, Q, L, C, survey_weight) %in% colnames(data)))  stop("The variables must be in the data.")
+  if (FALSE %in% (c(Y, W, R1, R2, Q, L, C, survey_weight) %in% colnames(data)))  stop("The variables must be in the data.",call.=FALSE)
   data_nom <- na.omit(data[,c(Y, W, R1, R2, Q, L, C, survey_weight)])
   # Even if R1 and R2 do not exhaust the data, the cases in neither R1 nor R2 are still retained.
   # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the original disparity between R1 and R3.
   # Get rid of rows with any infinite value
   data_nom <- data_nom[is.finite(rowSums(data_nom[,unlist(lapply(data_nom, is.numeric))])),]
+  # check if there's any character variable
+  if (any(sapply(data_nom, is.character))) stop("Character variable shouldn't be used.",call.=FALSE)
   
   # check percent
   if(!is.numeric(percent)) stop("percent must be a numeric value.",call.=FALSE)
@@ -74,8 +76,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(length(survey_weight)>1) stop("survey_weight must be only one variable.",call.=FALSE)
   if(!is.null(survey_weight) & !is.numeric(data_nom[,survey_weight])) stop("survey_weight must be numeric",call.=FALSE) 
   if (is.null(survey_weight)) {
-    data_nom$survey_weight <- 1
-    survey_weight <- "survey_weight"}   # if no survey weight is supplied, simply use 1 for everyone
+    data_nom$survey_w <- 1
+    survey_weight <- "survey_w"}   # if no survey weight is supplied, simply use 1 for everyone
   
   # check if there is overlap between the covariates vectors
   if (!is.null(Q) & !is.null(L) & !is.null(C)) {
@@ -132,6 +134,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       any(W==R1, W==R2)
     )) stop("Each variable can only have one role.",call.=FALSE)
   }
+  
+  # check "model"
+  if (model!="logit" & model!="rf") stop("Only Logit and Random Forests are supported.",call.=FALSE)
   
   # check common_support argument
   if (!is.logical(common_support)) stop("common_support must be logical.",call.=FALSE)
@@ -204,7 +209,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       common_support_formula <- as.formula( paste("~", paste("0",paste(C,collapse="+"),sep="+"), sep="" ) )
     }
 
-    # the two lines below are now redundant, but reserved for making the common support function independent
     left_hand <- model.matrix(common_support_formula, data = left_hand) # expand factor variables if there is any.
     right_hand <- model.matrix(common_support_formula, data = right_hand) # expand factor variables if there is any.
     
@@ -271,7 +275,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   }
   
   # get the numerator and denominator for the intervention weight
-  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight]) 
+  if (model="logit") {
+  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight])  
   suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
   nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
   
@@ -282,6 +287,16 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
   # However, if the subsample where either R1 or R2 equal to 1 is retained, the results will be somewhat different. I choose not to use such subsample, as noted above. 
   # Also, all cases in data_nom are used to fit the models, and will have predicted weights for convenience. But only those in data_nom_cs will actually have their outcomes multiplied by the interventional weight.
+  } else {
+    # if model=="rf", random forest is used for the denominator model, but not the numerator model and not the models for the adjustment weight. The latter two are supposed to invoke low-dimensional covariate Q and C. 
+    nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight])  
+    suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
+    nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
+    
+    deno_mol <- ranger(deno_formula, data=data_R2, case.weights = data_R2[,survey_weight])
+    suppressWarnings( deno_pred <- predict(deno_mol, data = data_R2[common_support_indicator==1,], type = "response")$predictions ) 
+    deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
+    }
   
   # the intervention weight
   intervene_w <- rep(1, nrow(data_R2))
@@ -378,9 +393,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
         common_support_formula <- as.formula( paste("~", paste("0",paste(C,collapse="+"),sep="+"), sep="" ) )
       }
       
-      left_hand <- na.omit(left_hand)
       left_hand <- model.matrix(common_support_formula, data = left_hand) 
-      right_hand <- na.omit(right_hand)  
       right_hand <- model.matrix(common_support_formula, data = right_hand) 
       
       left_hand_transpose <- rbind(t(left_hand), rep(1, nrow(left_hand)))
@@ -396,12 +409,18 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     }
     
     nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight]) 
-    suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
-    nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
+    suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  
+    nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  
     
-    deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2, weights = data_R2[,survey_weight]) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
-    suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
-    deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
+    if (model=="logit") {
+      deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2, weights = data_R2[,survey_weight]) 
+      suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
+      deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
+    } else {
+      deno_mol <- ranger(deno_formula, data=data_R2, case.weights = data_R2[,survey_weight])
+      suppressWarnings( deno_pred <- predict(deno_mol, data = data_R2[common_support_indicator==1,], type = "response")$predictions ) 
+      deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
+    }
     
     intervene_w <- rep(1, nrow(data_R2))
     intervene_w[common_support_indicator==1] <- (percent/100)*(nume_pred/deno_pred)
