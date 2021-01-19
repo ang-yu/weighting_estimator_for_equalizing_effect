@@ -137,6 +137,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   # check "model"
   if (model!="logit" & model!="rf") stop("Only Logit and Random Forests are supported.",call.=FALSE)
+  if (model=="rf" & isFALSE(require(ranger))) stop("The ranger package needs to be installed.",call.=FALSE)
   
   # check common_support argument
   if (!is.logical(common_support)) stop("common_support must be logical.",call.=FALSE)
@@ -178,8 +179,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       }
       }
     }
-    if (FALSE %in% corresponding_level_indicator) 
-      stop("There is at least one factor variable in Q or C that has a level where there are only base group members but not target group members. You may either change the factor variables into numeric dummies, or specify the common_support option to be TRUE.",call.=FALSE)
+    if (FALSE %in% corresponding_level_indicator) stop("There is at least one factor variable in Q or C that has a level where there are only base group members but not target group members. You may either change the factor variables into numeric dummies, or specify the common_support option to be TRUE.",call.=FALSE)
   }
   
   
@@ -275,7 +275,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   }
   
   # get the numerator and denominator for the intervention weight
-  if (model="logit") {
+  if (model=="logit") {
   nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight])  
   suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
   nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
@@ -349,7 +349,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     
     highest_weight <- max(intervene_w[retaining_indicator])
     median_weight <- median(intervene_w[retaining_indicator])
-    
   }
   
   if (metric=="difference") {
