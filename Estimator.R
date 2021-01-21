@@ -75,6 +75,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(!is.null(survey_weight) & !is.character(survey_weight)) stop("survey_weight must be a character scalar vector.",call.=FALSE)
   if(length(survey_weight)>1) stop("survey_weight must be only one variable.",call.=FALSE)
   if(!is.null(survey_weight) & !is.numeric(data_nom[,survey_weight])) stop("survey_weight must be numeric",call.=FALSE) 
+  if(!is.null(survey_weight & isFALSE(require(survey))) stop("The 'survey' package needs to be installed.",call.=FALSE)
   if (is.null(survey_weight)) {
     data_nom$survey_w <- 1
     survey_weight <- "survey_w"}   # if no survey weight is supplied, simply use 1 for everyone
@@ -150,33 +151,33 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     corresponding_level_indicator <- c(TRUE)
     if (!is.null(Q) & !is.null(C)) {
       if (length( which(sapply(data_nom[, c(Q,C)], is.factor)) )>0) {
-      for (q in 1:length( which(sapply(data_nom[, c(Q,C)], is.factor)) ) )  {# iterate over all factor variables
-        q_corresonding_level <- 
-        levels( droplevels( data_nom[data_nom[,R2]==1, c(Q,C)[ which(sapply(data_nom[, c(Q,C)], is.factor))[q] ] ] ) ) %in%
-        levels( droplevels( data_nom[data_nom[,R1]==1, c(Q,C)[ which(sapply(data_nom[, c(Q,C)], is.factor))[q] ] ] ) ) 
-        # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
-        corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
-      }
+        for (q in 1:length( which(sapply(data_nom[, c(Q,C)], is.factor)) ) )  {# iterate over all factor variables
+          q_corresonding_level <- 
+            levels( droplevels( data_nom[data_nom[,R2]==1, c(Q,C)[ which(sapply(data_nom[, c(Q,C)], is.factor))[q] ] ] ) ) %in%
+            levels( droplevels( data_nom[data_nom[,R1]==1, c(Q,C)[ which(sapply(data_nom[, c(Q,C)], is.factor))[q] ] ] ) ) 
+          # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
+          corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
+        }
       }
     } else if (!is.null(Q)) {
       if (length( which(sapply(data_nom[, c(Q)], is.factor)) )>0) {
-      for (q in 1:length( which(sapply(data_nom[, c(Q)], is.factor)) ) )  {# iterate over all factor variables
-        q_corresonding_level <- 
-          levels( droplevels( data_nom[data_nom[,R2]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) %in%
-          levels( droplevels( data_nom[data_nom[,R1]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) 
-        # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
-        corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
-      }
+        for (q in 1:length( which(sapply(data_nom[, c(Q)], is.factor)) ) )  {# iterate over all factor variables
+          q_corresonding_level <- 
+            levels( droplevels( data_nom[data_nom[,R2]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) %in%
+            levels( droplevels( data_nom[data_nom[,R1]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) 
+          # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
+          corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
+        }
       }
     } else {
       if (length( which(sapply(data_nom[, c(Q,C)], is.factor)) )>0) {
-      for (q in 1:length( which(sapply(data_nom[, c(C)], is.factor)) ) )  {# iterate over all factor variables
-        q_corresonding_level <- 
-          levels( droplevels( data_nom[data_nom[,R2]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) %in%
-          levels( droplevels( data_nom[data_nom[,R1]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) 
-        # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
-        corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
-      }
+        for (q in 1:length( which(sapply(data_nom[, c(C)], is.factor)) ) )  {# iterate over all factor variables
+          q_corresonding_level <- 
+            levels( droplevels( data_nom[data_nom[,R2]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) %in%
+            levels( droplevels( data_nom[data_nom[,R1]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) 
+          # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
+          corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
+        }
       }
     }
     if (FALSE %in% corresponding_level_indicator) stop("There is at least one factor variable in Q or C that has a level where there are only base group members but not target group members. You may either change the factor variables into numeric dummies, or specify the common_support option to be TRUE.",call.=FALSE)
@@ -208,7 +209,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       right_hand <- data_R2[,c(C), drop = FALSE]
       common_support_formula <- as.formula( paste("~", paste("0",paste(C,collapse="+"),sep="+"), sep="" ) )
     }
-
+    
     left_hand <- model.matrix(common_support_formula, data = left_hand) # expand factor variables if there is any.
     right_hand <- model.matrix(common_support_formula, data = right_hand) # expand factor variables if there is any.
     
@@ -233,6 +234,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     # if common_support=F, all R2 members are assumed to be in the common support
   }
   n_not_in_common_support <- sum(common_support_indicator==0)
+  if (n_not_in_common_support==nrow(data_R2)) stop("Nobody is in the common support",call.=FALSE)
   
   # these with the underline are scalar vector, no longer vectors of multiple variable names
   Q_ <- paste(Q,collapse="+")
@@ -275,28 +277,26 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   }
   
   # get the numerator and denominator for the intervention weight
-  if (model=="logit") {
-  nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight])  
+  
+  suppressWarnings( nume_mol <- svyglm(nume_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_R1), data=data_R1, weights = data_R1[,survey_weight])) )
   suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
   nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
   
-  deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2, weights = data_R2[,survey_weight]) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
-  suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
-  deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
-  
-  ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
-  # However, if the subsample where either R1 or R2 equal to 1 is retained, the results will be somewhat different. I choose not to use such subsample, as noted above. 
-  # Also, all cases in data_nom are used to fit the models, and will have predicted weights for convenience. But only those in data_nom_cs will actually have their outcomes multiplied by the interventional weight.
+  if (model=="logit") {
+    suppressWarnings( deno_mol <- svyglm(deno_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_R2), data=data_R2, weights = data_R2[,survey_weight])) ) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
+    suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
+    deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
+    
+    ## about the two logit models above: it doesn't matter if I specify no intercept, the predicted values will be the exact same.
+    # However, if the subsample where either R1 or R2 equal to 1 is retained, the results will be somewhat different. I choose not to use such subsample, as noted above. 
+    # Also, all cases in data_nom are used to fit the models, and will have predicted weights for convenience. But only those in data_nom_cs will actually have their outcomes multiplied by the interventional weight.
+    
   } else {
     # if model=="rf", random forest is used for the denominator model, but not the numerator model and not the models for the adjustment weight. The latter two are supposed to invoke low-dimensional covariate Q and C. 
-    nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight])  
-    suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  # only those who are in the common support are used in prediction
-    nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  # the prediction for people with W=0 should be 1-(P(M=1|covariates))
-    
     deno_mol <- ranger(deno_formula, data=data_R2, case.weights = data_R2[,survey_weight])
     suppressWarnings( deno_pred <- predict(deno_mol, data = data_R2[common_support_indicator==1,], type = "response")$predictions ) 
     deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
-    }
+  }
   
   # the intervention weight
   intervene_w <- rep(1, nrow(data_R2))
@@ -306,8 +306,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   if (C_!="") {
     
-    suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_nom, weights = data_nom[,survey_weight]), type="response") )  # I've checked, when everyone is in R1, this gives predicted probability=1 for everyone.
-    suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_nom, weights = data_nom[,survey_weight]), type="response") )
+    suppressWarnings( adjustment_R1_pred <- predict( svyglm(adjustment_R1_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_nom), data=data_nom, weights = data_nom[,survey_weight])), type = "response") )
+    suppressWarnings( adjustment_R2_pred <- predict( svyglm(adjustment_R2_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_nom), data=data_nom, weights = data_nom[,survey_weight])), type = "response") )
     
     # the R1 adjustment weight
     adjust_R1_w <- mean(data_nom[,R1]==1)/adjustment_R1_pred[data_nom[,R1]==1]
@@ -341,7 +341,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     # When C is absent, original_R1 and original_R2 are not subject to weight truncation
     original_R1 <- weighted.mean(x=data_R1[,Y], w=data_R1[,survey_weight])
     original_R2 <- weighted.mean(x=data_R2[,Y], w=data_R2[,survey_weight])
-
+    
     # When C is absent, the threshold is simply the specified quantile of the only weight in the model: the intervention weight
     threshold <- quantile(intervene_w, probs=truncation_threshold)
     retaining_indicator <- intervene_w <= threshold
@@ -407,12 +407,12 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       common_support_indicator <- rep(1, nrow(data_R2))
     }
     
-    nume_mol <- glm(nume_formula, family=binomial(link = "logit"), data=data_R1, weights = data_R1[,survey_weight]) 
+    suppressWarnings( nume_mol <- svyglm(nume_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_R1), data=data_R1, weights = data_R1[,survey_weight])) )
     suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  
     nume_pred[data_R2[common_support_indicator==1,W]==0] <- 1-nume_pred[data_R2[common_support_indicator==1,W]==0]  
     
     if (model=="logit") {
-      deno_mol <- glm(deno_formula, family=binomial(link = "logit"), data=data_R2, weights = data_R2[,survey_weight]) 
+      suppressWarnings( deno_mol <- svyglm(deno_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_R2), data=data_R2, weights = data_R2[,survey_weight])) ) # even those not in the common support are used in the model (for efficiency) but they are selected out below.
       suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
       deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
     } else {
@@ -426,8 +426,8 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     
     if (!is.null(C)) {
       
-      suppressWarnings( adjustment_R1_pred <- predict(glm(adjustment_R1_formula, family=binomial(link = "logit"), data=data_boot), type="response") ) 
-      suppressWarnings( adjustment_R2_pred <- predict(glm(adjustment_R2_formula, family=binomial(link = "logit"), data=data_boot), type="response") )
+      suppressWarnings( adjustment_R1_pred <- predict( svyglm(adjustment_R1_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_boot), data=data_boot, weights = data_boot[,survey_weight])), type = "response") )
+      suppressWarnings( adjustment_R2_pred <- predict( svyglm(adjustment_R2_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_boot), data=data_boot, weights = data_boot[,survey_weight])), type = "response") )
       
       adjust_R1_w <- mean(data_boot[,R1]==1)/adjustment_R1_pred[data_boot[,R1]==1]
       
