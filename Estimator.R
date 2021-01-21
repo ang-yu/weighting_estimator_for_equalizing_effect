@@ -75,7 +75,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if(!is.null(survey_weight) & !is.character(survey_weight)) stop("survey_weight must be a character scalar vector.",call.=FALSE)
   if(length(survey_weight)>1) stop("survey_weight must be only one variable.",call.=FALSE)
   if(!is.null(survey_weight) & !is.numeric(data_nom[,survey_weight])) stop("survey_weight must be numeric",call.=FALSE) 
-  if(!is.null(survey_weight & isFALSE(require(survey))) stop("The 'survey' package needs to be installed.",call.=FALSE)
+  if(!is.null(survey_weight & isFALSE(require(survey))) stop("The survey package needs to be installed.",call.=FALSE)
   if (is.null(survey_weight)) {
     data_nom$survey_w <- 1
     survey_weight <- "survey_w"}   # if no survey weight is supplied, simply use 1 for everyone
