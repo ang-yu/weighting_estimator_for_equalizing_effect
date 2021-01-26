@@ -165,17 +165,15 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
           q_corresonding_level <- 
             levels( droplevels( data_nom[data_nom[,R2]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) %in%
             levels( droplevels( data_nom[data_nom[,R1]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) 
-          # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
           corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
         }
       }
-    } else {
-      if (length( which(sapply(data_nom[, c(Q,C)], is.factor)) )>0) {
+    } else if (!is.null(C)) {
+      if (length( which(sapply(data_nom[, c(C)], is.factor)) )>0) {
         for (q in 1:length( which(sapply(data_nom[, c(C)], is.factor)) ) )  {# iterate over all factor variables
           q_corresonding_level <- 
             levels( droplevels( data_nom[data_nom[,R2]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) %in%
             levels( droplevels( data_nom[data_nom[,R1]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) 
-          # whether each nonempty level in qth factor in the base group has a corresponding nonempty level in the target group
           corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
         }
       }
