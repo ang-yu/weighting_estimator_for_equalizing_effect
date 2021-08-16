@@ -362,8 +362,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     reduction <- (post_R2/(1-post_R2))/(original_R2/(1-original_R2))
   }
   
-  cl <- makeCluster(96)
-  registerDoParallel(cl)
+  registerDoParallel()
   
   boot_results <- foreach(i=1:K,.options.RNG=36, .combine='rbind', .packages=c("survey","ranger")) %dorng%  {
     
@@ -466,7 +465,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       reduction_boot <- (post_R2_boot/(1-post_R2_boot))/(original_R2_boot/(1-original_R2_boot))
     }
     
-    boot_output <- list(unname(original_boot),unname(remaining_boot),unname(reduction_boot))
+    boot_output <- c(unname(original_boot),unname(remaining_boot),unname(reduction_boot))
   
     return(boot_output)
   }
@@ -475,11 +474,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   boot_results <- as.data.frame(boot_results)
   
-  boot_original <- unlist(boot_results[,1])
-  boot_remaining <- unlist(boot_results[,2])
-  boot_reduction <- unlist(boot_results[,3])
-  
-  stopCluster(cl)
+  boot_original <- boot_results[,1]
+  boot_remaining <- boot_results[,2]
+  boot_reduction <- boot_results[,3]
   
   boot_original_sd <- sqrt(mean((boot_original-mean(boot_original))^2)) # use this formula instead of sd() so that the denominator is K instead of K-1
   boot_remaining_sd <- sqrt(mean((boot_remaining-mean(boot_remaining))^2))
