@@ -472,8 +472,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # Note that for the bootstrap, instead of using cases not weight-truncated in the original sample, weight truncation is performed independently for each bootstrap sample.
   # The same is applied to common support restriction. 
   
-  boot_results <- as.data.frame(boot_results)
-  
   boot_original <- boot_results[,1]
   boot_remaining <- boot_results[,2]
   boot_reduction <- boot_results[,3]
