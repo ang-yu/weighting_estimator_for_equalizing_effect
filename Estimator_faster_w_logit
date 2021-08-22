@@ -364,7 +364,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   
   registerDoParallel()
   
-  boot_results <- foreach(i=1:K,.options.RNG=36, .combine='rbind', .packages=c("survey","ranger")) %dorng%  {
+  boot_results <- foreach(i=1:K,.options.RNG=36, .combine='rbind', .packages=c("tidyverse","survey","ranger")) %dorng%  {
     
     indices <- sample(1:nrow(data_nom), nrow(data_nom), replace = TRUE)
     data_boot <- data_nom[indices,]
