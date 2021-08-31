@@ -374,6 +374,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     
     data_R2 <- data_R2 %>% group_by(s_id) %>% mutate(count = n())
     data_R2 <- data_R2[data_R2$count>1, ]
+    data_R2 <- as.data.frame(data_R2)
     
     if (common_support==T) {
       
