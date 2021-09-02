@@ -291,7 +291,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     
   } else {
     # if model=="rf", random forest is used for the denominator model, but not the numerator model and not the models for the adjustment weight. The latter two are supposed to invoke low-dimensional covariate Q and C. 
-    deno_mol <- ranger(deno_formula, data=data_R2, case.weights = data_R2[,survey_weight])
+    deno_mol <- ranger(deno_formula, data=data_R2, case.weights = data_R2[,survey_weight],respect.unordered.factors)
     suppressWarnings( deno_pred <- predict(deno_mol, data = data_R2[common_support_indicator==1,], type = "response")$predictions ) 
     deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
   }
@@ -414,7 +414,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
       suppressWarnings( deno_pred <- predict(deno_mol, newdata = data_R2[common_support_indicator==1,], type = "response") ) 
       deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
     } else {
-      deno_mol <- ranger(deno_formula, data=data_R2, case.weights = data_R2[,survey_weight])
+      deno_mol <- ranger(deno_formula, data=data_R2, case.weights = data_R2[,survey_weight],respect.unordered.factors)
       suppressWarnings( deno_pred <- predict(deno_mol, data = data_R2[common_support_indicator==1,], type = "response")$predictions ) 
       deno_pred[data_R2[common_support_indicator==1,W]==0] <- 1-deno_pred[data_R2[common_support_indicator==1,W]==0] 
     }
