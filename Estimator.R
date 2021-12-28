@@ -18,6 +18,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # Otherwise, when C is present, the original disparity between R1 and R2 plus the original disparity between R2 and R3 will not equal the original disparity between R1 and R3.
   # Get rid of rows with any infinite value
   data_nom <- data_nom[is.finite(rowSums(data_nom[,unlist(lapply(data_nom, is.numeric))])),]
+  data_nom <- as.data.frame(data_nom) # in case it's automatically tranformed to a tibble.
   # check if there's any character variable
   if (any(sapply(data_nom, is.character))) stop("Character variable shouldn't be used.",call.=FALSE)
   
@@ -160,20 +161,20 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
         }
       }
     } else if (!is.null(Q)) {
-      if (length( which(sapply(data_nom[, c(Q)], is.factor)) )>0) {
-        for (q in 1:length( which(sapply(data_nom[, c(Q)], is.factor)) ) )  {# iterate over all factor variables
+      if (length( which(sapply(as.data.frame(data_nom[, c(Q)]), is.factor)) )>0) {
+        for (q in 1:length( which(sapply(as.data.frame(data_nom[, c(Q)]), is.factor)) ) )  {# iterate over all factor variables
           q_corresonding_level <- 
-            levels( droplevels( data_nom[data_nom[,R2]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) %in%
-            levels( droplevels( data_nom[data_nom[,R1]==1, c(Q)[ which(sapply(data_nom[, c(Q)], is.factor))[q] ] ] ) ) 
+            levels( droplevels( data_nom[data_nom[,R2]==1, c(Q)[ which(sapply(as.data.frame(data_nom[, c(Q)]), is.factor))[q] ] ] ) ) %in%
+            levels( droplevels( data_nom[data_nom[,R1]==1, c(Q)[ which(sapply(as.data.frame(data_nom[, c(Q)]), is.factor))[q] ] ] ) ) 
           corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
         }
       }
     } else if (!is.null(C)) {
-      if (length( which(sapply(data_nom[, c(C)], is.factor)) )>0) {
-        for (q in 1:length( which(sapply(data_nom[, c(C)], is.factor)) ) )  {# iterate over all factor variables
+      if (length( which(sapply(as.data.frame(data_nom[, c(C)]), is.factor)) )>0) {
+        for (q in 1:length( which(sapply(as.data.frame(data_nom[, c(C)]), is.factor)) ) )  {# iterate over all factor variables
           q_corresonding_level <- 
-            levels( droplevels( data_nom[data_nom[,R2]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) %in%
-            levels( droplevels( data_nom[data_nom[,R1]==1, c(C)[ which(sapply(data_nom[, c(C)], is.factor))[q] ] ] ) ) 
+            levels( droplevels( data_nom[data_nom[,R2]==1, c(C)[ which(sapply(as.data.frame(data_nom[, c(C)]), is.factor))[q] ] ] ) ) %in%
+            levels( droplevels( data_nom[data_nom[,R1]==1, c(C)[ which(sapply(as.data.frame(data_nom[, c(C)]), is.factor))[q] ] ] ) ) 
           corresponding_level_indicator <- c(corresponding_level_indicator,q_corresonding_level)
         }
       }
