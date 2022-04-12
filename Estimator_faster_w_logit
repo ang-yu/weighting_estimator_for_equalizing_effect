@@ -329,7 +329,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     # highest and median used weight (not accounting for the survey weight) is stored.
     highest_weight <- max(c(adjust_R1_w[retaining_indicator_R1], 
                             adjust_R2_w[retaining_indicator_R2],
-                            intervene_w*adjust_R2_w[retaining_indicator_R2]))
+                            (intervene_w*adjust_R2_w)[retaining_indicator_R2]))
     median_weight <-  median(c(adjust_R1_w[retaining_indicator_R1], 
                                adjust_R2_w[retaining_indicator_R2],
                                (intervene_w*adjust_R2_w)[retaining_indicator_R2]))
