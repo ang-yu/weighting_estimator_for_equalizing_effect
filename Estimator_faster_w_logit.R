@@ -375,10 +375,6 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     data_R1 <- data_boot[data_boot[,R1]==1,]
     data_R2 <- data_boot[data_boot[,R2]==1,]
     
-    data_R2 <- data_R2 %>% group_by(s_id) %>% mutate(count = n())
-    data_R2 <- data_R2[data_R2$count>1, ]
-    data_R2 <- as.data.frame(data_R2)
-    
     if (common_support==T) {
       
       if (!is.null(Q) & !is.null(C)) {
@@ -416,7 +412,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # these with the underline are scalar vector, no longer vectors of multiple variable names
   Q_ <- paste(Q,collapse="+")
   C_ <- paste(C,collapse="+")
-  L_boot_ <- paste(L,collapse="+")
+  L_boot_ <- paste(L_boot,collapse="+")
   
   # generate formulas needed according to the presence or absence of Q, L, and C.
   if (Q_!="" & L_boot_!="" & C_!="") {
