@@ -235,6 +235,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   n_not_in_common_support <- sum(common_support_indicator==0)
   if (n_not_in_common_support==nrow(data_R2)) stop("Nobody is in the common support",call.=FALSE)
   
+  # Drop L variables that have 0 variance in data_R2
+  L <- L[which(apply(data_R2[,L],2,var)!=0)]
+  
   # these with the underline are scalar vector, no longer vectors of multiple variable names
   Q_ <- paste(Q,collapse="+")
   C_ <- paste(C,collapse="+")
@@ -405,6 +408,49 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     } else {
       common_support_indicator <- rep(1, nrow(data_R2))
     }
+    
+  # Drop L variables that have 0 variance in data_R2
+  L_boot <- L[which(apply(data_R2[,L],2,var)!=0)]
+  
+  # these with the underline are scalar vector, no longer vectors of multiple variable names
+  Q_ <- paste(Q,collapse="+")
+  C_ <- paste(C,collapse="+")
+  L_boot_ <- paste(L,collapse="+")
+  
+  # generate formulas needed according to the presence or absence of Q, L, and C.
+  if (Q_!="" & L_boot_!="" & C_!="") {
+    nume_formula <- as.formula(paste(W, paste(Q_,C_,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q_,C_,L_boot_,sep="+"),sep="~"))
+    adjustment_R1_formula <- as.formula(paste(R1,C_,sep="~"))
+    adjustment_R2_formula <- as.formula(paste(R2,C_,sep="~"))
+  } else if (Q_!="" & L_boot_!="") {
+    nume_formula <- as.formula(paste(W, paste(Q_,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q_,L_boot_,sep="+"),sep="~"))
+  } else if (Q_!="" & C_!="") {
+    nume_formula <- as.formula(paste(W, paste(Q_,C_,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q_,C_,sep="+"),sep="~"))
+    adjustment_R1_formula <- as.formula(paste(R1,C_,sep="~"))
+    adjustment_R2_formula <- as.formula(paste(R2,C_,sep="~"))
+  } else if (L_boot_!="" & C_!="") {
+    nume_formula <- as.formula(paste(W, paste(C_,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(C_,L_boot_,sep="+"),sep="~"))
+    adjustment_R1_formula <- as.formula(paste(R1,C_,sep="~"))
+    adjustment_R2_formula <- as.formula(paste(R2,C_,sep="~"))
+  } else if (Q_!="") {
+    nume_formula <- as.formula(paste(W, paste(Q_,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(Q_,sep="+"),sep="~"))
+  } else if (L_boot_!="") {
+    nume_formula <- as.formula(paste(W, 1, sep="~")) # intercept only
+    deno_formula <- as.formula(paste(W, paste(L_boot_,sep="+"),sep="~"))
+  } else if (C_!="") {
+    nume_formula <- as.formula(paste(W, paste(C_,sep="+"),sep="~"))
+    deno_formula <- as.formula(paste(W, paste(C_,sep="+"),sep="~"))
+    adjustment_R1_formula <- as.formula(paste(R1,C_,sep="~"))
+    adjustment_R2_formula <- as.formula(paste(R2,C_,sep="~"))
+  } else {
+    nume_formula <- as.formula(paste(W, 1 ,sep="~"))
+    deno_formula <- as.formula(paste(W, 1 ,sep="~"))
+  }
     
     suppressWarnings( nume_mol <- svyglm(nume_formula, family=binomial(link = "logit"), design=svydesign(id=rownames(data_R1), data=data_R1, weights = data_R1[,survey_weight])) )
     suppressWarnings( nume_pred <- predict(nume_mol, newdata = data_R2[common_support_indicator==1,], type = "response") )  
