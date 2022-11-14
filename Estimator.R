@@ -236,7 +236,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   if (n_not_in_common_support==nrow(data_R2)) stop("Nobody is in the common support",call.=FALSE)
   
   # Drop L variables that have 0 variance in data_R2
+if (length(L)>1) {
   L <- L[which(apply(data_R2[,L],2,var)!=0)]
+}
   
   # these with the underline are scalar vector, no longer vectors of multiple variable names
   Q_ <- paste(Q,collapse="+")
@@ -410,7 +412,9 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
     }
     
   # Drop L variables that have 0 variance in data_R2
+    if (length(L)>1) {
   L_boot <- L[which(apply(data_R2[,L],2,var)!=0)]
+}
   
   # these with the underline are scalar vector, no longer vectors of multiple variable names
   Q_ <- paste(Q,collapse="+")
