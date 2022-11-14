@@ -238,7 +238,7 @@ equalize <- function(Y, W, R1, R2, Q=NULL, L=NULL, C=NULL, data, percent=100, me
   # Drop L variables that have 0 variance in data_R2
 if (length(L)>1) {
   L <- L[which(apply(data_R2[,L],2,var)!=0)]
-}
+} 
   
   # these with the underline are scalar vector, no longer vectors of multiple variable names
   Q_ <- paste(Q,collapse="+")
@@ -414,12 +414,14 @@ if (length(L)>1) {
   # Drop L variables that have 0 variance in data_R2
     if (length(L)>1) {
   L_boot <- L[which(apply(data_R2[,L],2,var)!=0)]
-}
+} else {
+      L_boot <- L
+  }
   
   # these with the underline are scalar vector, no longer vectors of multiple variable names
   Q_ <- paste(Q,collapse="+")
   C_ <- paste(C,collapse="+")
-  L_boot_ <- paste(L,collapse="+")
+  L_boot_ <- paste(L_boot,collapse="+")
   
   # generate formulas needed according to the presence or absence of Q, L, and C.
   if (Q_!="" & L_boot_!="" & C_!="") {
